@@ -624,8 +624,8 @@ export function showSearchResults(results) {
 }
 
 /**
- * Calculates and applies 3D cylindrical vertical carousel transformations
- * and opacity fades on queue items based on scroll position.
+ * Calculates and applies 3D transformations, scaling, and opacity fades on queue items
+ * only when they approach or cross the top and bottom boundaries of the scroll container.
  */
 export function updateQueueScrollEffect() {
   const container = elements.queueListWrapper;
@@ -635,7 +635,7 @@ export function updateQueueScrollEffect() {
   if (items.length === 0) return;
 
   const containerRect = container.getBoundingClientRect();
-  const containerCenterY = containerRect.height / 2;
+  const fadeThreshold = 40; // Pixels from top/bottom borders where the shrink/fade effect starts
 
   items.forEach((item) => {
     if (item.classList.contains('dragging')) {
@@ -645,21 +645,40 @@ export function updateQueueScrollEffect() {
     }
 
     const itemRect = item.getBoundingClientRect();
-    const itemCenterY = (itemRect.top + itemRect.bottom) / 2 - containerRect.top;
-    const distance = itemCenterY - containerCenterY;
-    
-    // Calculate normalized distance from center of visible container
-    const maxDistance = containerRect.height / 2 || 1;
-    const normalizedDistance = Math.min(Math.max(distance / maxDistance, -1), 1);
+    const itemHeight = itemRect.height || 48;
+    let ratio = 1;
+    let isTop = false;
 
-    // Apply cylindrical transform and opacity fade
-    const rotateX = normalizedDistance * 30; // 3D rotate
-    const translateZ = -Math.abs(normalizedDistance) * 40; // depth
-    const scale = 1 - Math.abs(normalizedDistance) * 0.12; // size
-    const opacity = 1 - Math.abs(normalizedDistance) * 0.7; // fadeout (min 0.3)
+    // Check distance of item edges relative to container boundaries
+    const distToTop = itemRect.top - containerRect.top;
+    const distToBottom = containerRect.bottom - itemRect.bottom;
 
-    item.style.transform = `perspective(600px) rotateX(${rotateX}deg) translateZ(${translateZ}px) scale(${scale})`;
-    item.style.opacity = opacity;
+    if (distToTop < fadeThreshold) {
+      isTop = true;
+      const visibleHeight = itemRect.bottom - containerRect.top;
+      const totalRange = fadeThreshold + itemHeight;
+      ratio = Math.min(1, Math.max(0, visibleHeight / totalRange));
+    } else if (distToBottom < fadeThreshold) {
+      const visibleHeight = containerRect.bottom - itemRect.top;
+      const totalRange = fadeThreshold + itemHeight;
+      ratio = Math.min(1, Math.max(0, visibleHeight / totalRange));
+    }
+
+    if (ratio < 1) {
+      // Smoothly shrink, pull back (3D depth), rotate slightly, and fade out at the edges
+      const scale = 0.8 + 0.2 * ratio;
+      const opacity = ratio;
+      const translateZ = -40 * (1 - ratio);
+      const rotateX = (isTop ? 1 : -1) * 15 * (1 - ratio);
+
+      item.style.transform = `perspective(500px) rotateX(${rotateX}deg) translateZ(${translateZ}px) scale(${scale})`;
+      item.style.opacity = opacity;
+    } else {
+      // Flat and normal in the active area
+      item.style.transform = '';
+      item.style.opacity = '';
+    }
+
     item.style.transformOrigin = 'center center';
   });
 }
