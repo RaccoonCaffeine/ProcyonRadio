@@ -182,6 +182,9 @@ html.dark * {
 
 html.dark .progress-slider {
   background: rgba(255, 255, 255, 0.06);
+  background-image: linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, 0.9) 100%);
+  background-repeat: no-repeat;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
 }
 
 .progress-slider::-webkit-slider-thumb {
@@ -237,6 +240,8 @@ html.dark .progress-slider::-webkit-slider-thumb {
 
 html.dark .settings-slider {
   background: rgba(255, 255, 255, 0.1);
+  background-image: linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, 0.9) 100%);
+  background-repeat: no-repeat;
 }
 
 .settings-slider::-webkit-slider-thumb {
@@ -258,6 +263,24 @@ html.dark .settings-slider {
   background: var(--accent-cyan);
   box-shadow: 0 0 6px var(--accent-cyan-glow);
   cursor: pointer;
+}
+
+html.dark .settings-slider::-webkit-slider-thumb {
+  background: #ffffff !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8) !important;
+}
+
+html.dark .settings-slider::-moz-range-thumb {
+  background: #ffffff !important;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8) !important;
+}
+
+.queue-list-wrapper {
+  perspective: 600px;
+  transform-style: preserve-3d;
+}
+.queue-list {
+  transform-style: preserve-3d;
 }
 
 /* ─── Queue List Items ──────────────────────────────────────── */
@@ -488,12 +511,6 @@ html.dark .toast-error {
   /* Reduce gap on the container */
   .item-left {
     gap: 4px !important;
-  }
-
-  /* Hide up/down chevron buttons to leave only the delete button and title */
-  .item-actions button[data-action="move-up"],
-  .item-actions button[data-action="move-down"] {
-    display: none !important;
   }
 
   /* Reduce space on actions and delete button */

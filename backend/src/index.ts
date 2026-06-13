@@ -11,7 +11,7 @@ import { streamWorker } from "./stream/stream.worker.js";
 import { settingsManager } from "./settings/settings.manager.js";
 import { authManager, type UserRole } from "./auth/auth.manager.js";
 import { tunnelManager } from "./utils/tunnel.manager.js";
-import { isActivated, activateLicense, initializeLicenseCheck } from "./utils/license.js";
+import { isActivated, activateLicense, initializeLicenseCheck, updateLicenseOwner } from "./utils/license.js";
 
 // ─── Express app ─────────────────────────────────────────────
 const app = express();
@@ -147,6 +147,12 @@ app.post("/api/auth/setup", (req: Request, res: Response) => {
       return;
     }
     const owner = authManager.registerOwner(username, password);
+    
+    // Actualizar Supabase con el nombre de usuario del dueño registrado
+    updateLicenseOwner(username).catch((err) => {
+      console.error("🔑 [Licensing] Error actualizando propietario en setup:", err);
+    });
+
     res.json({ success: true, username: owner.username, role: owner.role });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : String(err) });

@@ -31,7 +31,8 @@ import {
   setIsDraggingSettings,
   setLocalElapsed,
   setLastUpdateTimestamp,
-  applyRolePrivileges
+  applyRolePrivileges,
+  updateQueueScrollEffect
 } from './ui.js';
 import { 
   checkAuthStatus, 
@@ -608,6 +609,8 @@ function initStaticListeners() {
   elements.fadeSlider.addEventListener('input', () => {
     setIsDraggingSettings(true);
     elements.fadeValue.textContent = `${elements.fadeSlider.value}s`;
+    const fadePercent = (elements.fadeSlider.value / 10) * 100;
+    elements.fadeSlider.style.backgroundSize = `${fadePercent}% 100%`;
   });
 
   elements.fadeSlider.addEventListener('change', async () => {
@@ -628,6 +631,7 @@ function initStaticListeners() {
     elements.fallbackVolumeSlider.addEventListener('input', () => {
       setIsDraggingSettings(true);
       elements.fallbackVolumeValue.textContent = `${elements.fallbackVolumeSlider.value}%`;
+      elements.fallbackVolumeSlider.style.backgroundSize = `${elements.fallbackVolumeSlider.value}% 100%`;
     });
 
     elements.fallbackVolumeSlider.addEventListener('change', async () => {
@@ -699,6 +703,11 @@ async function init() {
 
   // Wire search results and delete delegations
   initEventDelegation();
+
+  // Wire scroll effect listener for 3D queue carousel
+  if (elements.queueListWrapper) {
+    elements.queueListWrapper.addEventListener('scroll', updateQueueScrollEffect);
+  }
   
   // 🔗 REACTIVE PROXY BINDING: Update UI whenever state object triggers a trap set
   subscribe((property, value, target) => {

@@ -50,6 +50,7 @@ export const elements = {
 
   queueList: document.getElementById('queue-list'),
   queueCounter: document.getElementById('queue-counter'),
+  queueListWrapper: document.querySelector('.queue-list-wrapper'),
 
   // Auth DOM Elements
   authOverlay: document.getElementById('auth-overlay'),
@@ -492,14 +493,17 @@ export function updateUI() {
     elements.progressSlider.disabled = true;
   }
 
-  // 3. Update Settings sliders
+  // 3. Update Settings sliders and trails
   if (elements.fadeSlider && !isDraggingSettings) {
     elements.fadeSlider.value = state.fadeDuration;
     elements.fadeValue.textContent = `${state.fadeDuration}s`;
+    const fadePercent = (state.fadeDuration / 10) * 100;
+    elements.fadeSlider.style.backgroundSize = `${fadePercent}% 100%`;
   }
   if (elements.fallbackVolumeSlider && !isDraggingSettings) {
     elements.fallbackVolumeSlider.value = state.fallbackVolume;
     elements.fallbackVolumeValue.textContent = `${state.fallbackVolume}%`;
+    elements.fallbackVolumeSlider.style.backgroundSize = `${state.fallbackVolume}% 100%`;
   }
 
   // 3.5. Update Cloudflare Tunnel Banner & settings details
@@ -585,6 +589,9 @@ export function updateUI() {
       `;
     }).join('');
   }
+  
+  // Apply vertical carousel scroll effect
+  updateQueueScrollEffect();
 }
 
 // ─── Search Results Dropdown ─────────────────────────────────────
@@ -614,4 +621,45 @@ export function showSearchResults(results) {
   }).join('');
 
   dropdown.classList.remove('hidden');
+}
+
+/**
+ * Calculates and applies 3D cylindrical vertical carousel transformations
+ * and opacity fades on queue items based on scroll position.
+ */
+export function updateQueueScrollEffect() {
+  const container = elements.queueListWrapper;
+  if (!container) return;
+
+  const items = container.querySelectorAll('.queue-item');
+  if (items.length === 0) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const containerCenterY = containerRect.height / 2;
+
+  items.forEach((item) => {
+    if (item.classList.contains('dragging')) {
+      item.style.transform = '';
+      item.style.opacity = '';
+      return;
+    }
+
+    const itemRect = item.getBoundingClientRect();
+    const itemCenterY = (itemRect.top + itemRect.bottom) / 2 - containerRect.top;
+    const distance = itemCenterY - containerCenterY;
+    
+    // Calculate normalized distance from center of visible container
+    const maxDistance = containerRect.height / 2 || 1;
+    const normalizedDistance = Math.min(Math.max(distance / maxDistance, -1), 1);
+
+    // Apply cylindrical transform and opacity fade
+    const rotateX = normalizedDistance * 30; // 3D rotate
+    const translateZ = -Math.abs(normalizedDistance) * 40; // depth
+    const scale = 1 - Math.abs(normalizedDistance) * 0.12; // size
+    const opacity = 1 - Math.abs(normalizedDistance) * 0.7; // fadeout (min 0.3)
+
+    item.style.transform = `perspective(600px) rotateX(${rotateX}deg) translateZ(${translateZ}px) scale(${scale})`;
+    item.style.opacity = opacity;
+    item.style.transformOrigin = 'center center';
+  });
 }

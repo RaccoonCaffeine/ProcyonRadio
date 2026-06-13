@@ -180,3 +180,41 @@ export async function activateLicense(key: string): Promise<{ success: boolean; 
     return { success: false, message: `Error de conexión: ${(err as any).message}` };
   }
 }
+
+/**
+ * Updates the license owner field in Supabase.
+ */
+export async function updateLicenseOwner(ownerUsername: string): Promise<boolean> {
+  try {
+    const key = activeLicenseKey || (fs.existsSync(licenseFilePath) ? JSON.parse(fs.readFileSync(licenseFilePath, "utf-8")).key : "");
+    if (!key) {
+      console.warn("🔑 [Licensing] No se encontró clave activa para actualizar el propietario.");
+      return false;
+    }
+
+    console.log(`🔑 [Licensing] Actualizando propietario de la licencia a '${ownerUsername}' en Supabase...`);
+    const url = `${SUPABASE_URL}/rest/v1/licenses?key=eq.${key}`;
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`
+      },
+      body: JSON.stringify({
+        owner: ownerUsername
+      })
+    });
+
+    if (!response.ok) {
+      console.error("🔑 [Licensing] Error actualizando propietario en Supabase:", response.status, response.statusText);
+      return false;
+    }
+
+    console.log("🔑 [Licensing] Propietario de la licencia actualizado con éxito en Supabase.");
+    return true;
+  } catch (err) {
+    console.error("🔑 [Licensing] Error al conectar con Supabase para actualizar propietario:", err);
+    return false;
+  }
+}
