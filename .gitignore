@@ -1,0 +1,39 @@
+# Binaries & Large Installer Files
+ProcyonRadio-Instalador.exe
+ProcyonRadio-Distribution.zip
+ProcyonRadio-Distribution/
+ffmpeg.exe
+yt-dlp.exe
+backend/ffmpeg.exe
+backend/yt-dlp.exe
+
+# Node.js Dependencies & Output
+node_modules/
+backend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Compiled TypeScript
+backend/dist/
+dist/
+
+# Environment & Credentials
+.env
+backend/.env
+
+# Local User Data & State
+data/
+backend/data/
+
+# OS Metadata & IDEs
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln.docstates

@@ -1,0 +1,468 @@
+/* ─── Variables & Colors ────────────────────────────────────── */
+:root {
+  --accent-purple: #4F46E5;
+  --accent-purple-glow: rgba(79, 70, 229, 0.15);
+  --accent-cyan: #0891B2;
+  --accent-cyan-glow: rgba(8, 145, 178, 0.15);
+  --border-color: rgba(15, 23, 42, 0.08);
+  --text-muted: #64748B;
+  
+  --color-success: #10B981;
+  --color-success-glow: rgba(16, 185, 129, 0.15);
+  --color-warning: #F59E0B;
+  --color-warning-glow: rgba(245, 158, 11, 0.15);
+}
+
+html.dark {
+  --accent-purple: #6366F1;
+  --accent-purple-glow: rgba(99, 102, 241, 0.3);
+  --accent-cyan: #06B6D4;
+  --accent-cyan-glow: rgba(6, 182, 212, 0.3);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --text-muted: #94A3B8;
+}
+
+/* ─── Custom Animations ──────────────────────────────────────── */
+@keyframes pulse-green {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes pulse-orange {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+@keyframes pulse-cyan {
+  0% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(6, 182, 212, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+}
+
+@keyframes bounce-slow {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+
+/* ─── Status Badges ─────────────────────────────────────────── */
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  border-radius: 40px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html.dark .status-badge {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: var(--text-muted);
+}
+
+.status-text {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+/* Status Variants styling */
+.status-badge.streaming {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 10px var(--color-success-glow);
+  background: rgba(16, 185, 129, 0.06);
+}
+.status-badge.streaming .status-dot {
+  background-color: var(--color-success);
+  animation: pulse-green 2s infinite;
+}
+.status-badge.streaming .status-text {
+  color: var(--color-success);
+}
+
+.status-badge.paused {
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 10px var(--color-warning-glow);
+  background: rgba(245, 158, 11, 0.06);
+}
+.status-badge.paused .status-dot {
+  background-color: var(--color-warning);
+  animation: pulse-orange 2s infinite;
+}
+.status-badge.paused .status-text {
+  color: var(--color-warning);
+}
+
+.status-badge.fallback {
+  border-color: rgba(6, 182, 212, 0.3);
+  box-shadow: 0 0 10px var(--accent-cyan-glow);
+  background: rgba(6, 182, 212, 0.06);
+}
+.status-badge.fallback .status-dot {
+  background-color: var(--accent-cyan);
+  animation: pulse-cyan 2s infinite;
+}
+.status-badge.fallback .status-text {
+  color: var(--accent-cyan);
+}
+
+/* ─── Music Wave Animation ───────────────────────────────────── */
+.music-wave {
+  animation: bounce-slow 1.2s ease-in-out infinite alternate;
+}
+
+/* ─── Scrollbars ────────────────────────────────────────────── */
+/* Custom Global Scrollbar for all scrollable areas, including the main page */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.15);
+  border-radius: 100px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.3);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Also support Firefox thin scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.15) transparent;
+}
+html.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* ─── Progress Slider & Range Styling ───────────────────────── */
+.progress-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  background: rgba(15, 23, 42, 0.06);
+  border-radius: 10px;
+  outline: none;
+  transition: background 0.3s;
+  background-image: linear-gradient(90deg, var(--accent-purple) 0%, var(--accent-cyan) 100%);
+  background-size: 0% 100%;
+  background-repeat: no-repeat;
+}
+
+html.dark .progress-slider {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.progress-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s, background-color 0.2s;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+html.dark .progress-slider::-webkit-slider-thumb {
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+  border: none;
+}
+
+.progress-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.35);
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan-glow);
+}
+
+.progress-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s, background-color 0.2s;
+  cursor: pointer;
+}
+
+.progress-slider:hover::-moz-range-thumb {
+  transform: scale(1.35);
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan-glow);
+}
+
+/* Settings Slider */
+.settings-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
+  outline: none;
+}
+
+html.dark .settings-slider {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 6px var(--accent-cyan-glow);
+  cursor: pointer;
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 6px var(--accent-cyan-glow);
+  cursor: pointer;
+}
+
+/* ─── Queue List Items ──────────────────────────────────────── */
+.queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(15, 23, 42, 0.02);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  border-radius: 12px;
+  padding: 10px 14px;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100%;
+  min-width: 0;
+}
+
+html.dark .queue-item {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.queue-item:hover {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.12);
+  transform: translateX(4px);
+}
+
+html.dark .queue-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.item-index {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.item-thumb-wrapper {
+  width: 48px;
+  height: 36px;
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid rgba(15, 23, 42, 0.05);
+}
+
+html.dark .item-thumb-wrapper {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.item-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-details {
+  min-width: 0;
+  flex: 1;
+}
+
+.item-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: inherit;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-id {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Remove button */
+.btn-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.btn-remove:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Drag and Drop states */
+.queue-item[draggable="true"] {
+  cursor: grab;
+}
+.queue-item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.queue-item.dragging {
+  opacity: 0.35;
+  border: 1px dashed var(--accent-purple);
+  transform: scale(0.97);
+}
+
+.queue-item.drag-over {
+  border-bottom: 2px solid var(--accent-cyan);
+  box-shadow: 0 4px 12px var(--accent-cyan-glow);
+  transform: translateY(-2px);
+  transition: all 0.25s ease;
+}
+
+/* ─── Mobile Menu Dropdown Animation ───────────────────────── */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+#mobile-menu-dropdown:not(.hidden) {
+  animation: fadeInScale 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ─── Toast Notifications ───────────────────────────────────── */
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-color);
+  transform: translateY(-20px) scale(0.95);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  max-width: 340px;
+}
+
+.toast.show {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.toast-info {
+  background: rgba(255, 255, 255, 0.95);
+  color: #1e293b;
+  border-color: rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(10px);
+}
+html.dark .toast-info {
+  background: rgba(17, 24, 39, 0.95);
+  color: #f8fafc;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.toast-success {
+  background: rgba(240, 253, 250, 0.95);
+  color: #0f766e;
+  border-color: rgba(20, 184, 166, 0.2);
+  backdrop-filter: blur(10px);
+}
+html.dark .toast-success {
+  background: rgba(13, 148, 136, 0.15);
+  color: #2dd4bf;
+  border-color: rgba(13, 148, 136, 0.25);
+}
+
+.toast-error {
+  background: rgba(254, 242, 242, 0.95);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.2);
+  backdrop-filter: blur(10px);
+}
+html.dark .toast-error {
+  background: rgba(220, 38, 38, 0.15);
+  color: #fca5a5;
+  border-color: rgba(220, 38, 38, 0.25);
+}

@@ -1,0 +1,43 @@
+{
+  "name": "live-stream-queue-manager",
+  "version": "1.0.0",
+  "description": "Backend que gestiona una cola de reproducción musical y transmite en vivo a YouTube vía RTMP.",
+  "main": "dist/index.js",
+  "bin": "dist/index.js",
+  "pkg": {
+    "assets": [
+      "dist/**/*.js",
+      "dist/**/*.js.map",
+      "dist/**/*.map",
+      "public/**/*",
+      "ffmpeg.exe",
+      "yt-dlp.exe",
+      "data/**/*"
+    ],
+    "outputPath": "dist/package"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "package:win": "pkg . --targets node20-win-x64 --output dist/package/ProcyonRadio.exe --compress GZip"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.15.0",
+    "@types/uuid": "^10.0.0",
+    "pkg": "^5.8.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,29 @@
+services:
+  livestream:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: livestream-queue-manager
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    networks:
+      - app-network
+    depends_on:
+      - pot-provider
+
+  # El nuevo motor de firmas automático (Sidecar)
+  pot-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider
+    container_name: yt-pot-provider
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

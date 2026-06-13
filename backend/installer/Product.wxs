@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product 
+        Id="*" 
+        Name="ProcyonRadio" 
+        Language="1033" 
+        Version="1.0.0.0" 
+        Manufacturer="ProcyonRadio" 
+        UpgradeCode="12345678-1234-1234-1234-111111111111">
+        
+        <Package 
+            InstallerVersion="200" 
+            Compressed="yes" 
+            InstallScope="perMachine" />
+        
+        <MediaTemplate />
+        
+        <Feature Id="ProductFeature" Title="ProcyonRadio Server" Level="1">
+            <ComponentRef Id="ProcyonRadioExe" />
+            <ComponentRef Id="FFmpegExe" />
+            <ComponentRef Id="YtDlpExe" />
+            <ComponentRef Id="StartMenuShortcut" />
+            <ComponentRef Id="DesktopShortcut" />
+        </Feature>
+    </Product>
+
+    <Fragment>
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFilesFolder">
+                <Directory Id="INSTALLFOLDER" Name="ProcyonRadio" />
+            </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="ProcyonRadio" />
+            </Directory>
+            <Directory Id="DesktopFolder" />
+        </Directory>
+    </Fragment>
+
+    <Fragment>
+        <Component Id="ProcyonRadioExe" Directory="INSTALLFOLDER" Guid="*">
+            <File Id="ProcyonRadioExeFile" Source="$(var.SourceDir)\ProcyonRadio.exe" />
+        </Component>
+
+        <Component Id="FFmpegExe" Directory="INSTALLFOLDER" Guid="*">
+            <File Id="FFmpegExeFile" Source="$(var.SourceDir)\ffmpeg.exe" />
+        </Component>
+
+        <Component Id="YtDlpExe" Directory="INSTALLFOLDER" Guid="*">
+            <File Id="YtDlpExeFile" Source="$(var.SourceDir)\yt-dlp.exe" />
+        </Component>
+
+        <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="*">
+            <Shortcut 
+                Id="ProcyonRadioStartMenuShortcut" 
+                Target="[INSTALLFOLDER]ProcyonRadio.exe" 
+                WorkingDirectory="INSTALLFOLDER"
+                Description="ProcyonRadio Music Server" />
+            <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
+            <RegistryValue 
+                Root="HKCU" 
+                Key="Software\ProcyonRadio" 
+                Name="installed" 
+                Type="integer" 
+                Value="1" 
+                KeyPath="yes" />
+        </Component>
+
+        <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="*">
+            <Shortcut 
+                Id="ProcyonRadioDesktopShortcut" 
+                Target="[INSTALLFOLDER]ProcyonRadio.exe" 
+                WorkingDirectory="INSTALLFOLDER"
+                Description="ProcyonRadio Music Server" />
+            <RegistryValue 
+                Root="HKCU" 
+                Key="Software\ProcyonRadio\Desktop" 
+                Name="shortcut" 
+                Type="integer" 
+                Value="1" 
+                KeyPath="yes" />
+        </Component>
+    </Fragment>
+</Wix>
