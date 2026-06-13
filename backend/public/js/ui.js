@@ -138,6 +138,7 @@ let lastUpdateTimestamp = 0;
 let isDraggingSlider = false;
 let isDraggingSettings = false;
 const shownErrors = new Set();
+let lastRenderedQueueJson = '';
 
 export const getIsDraggingSlider = () => isDraggingSlider;
 export const setIsDraggingSlider = (val) => { isDraggingSlider = val; };
@@ -536,58 +537,70 @@ export function updateUI() {
   // 4. Queue List
   elements.queueCounter.textContent = `${state.queue.length} ${state.queue.length === 1 ? 'canción' : 'canciones'}`;
   
-  if (state.queue.length === 0) {
-    elements.queueList.innerHTML = `
-      <li class="queue-placeholder text-center py-12 text-slate-400 dark:text-slate-500">
-        <i class="fa-solid fa-list-ul text-3xl mb-3 opacity-40"></i>
-        <p class="text-xs sm:text-sm">La cola está vacía. Añade algunas canciones arriba.</p>
-      </li>
-    `;
-  } else {
-    const isGuest = role === 'guest';
-    elements.queueList.innerHTML = state.queue.map((item, index) => {
-      const isError = item.duration === -1;
-      const title = isError ? "No se pudo cargar la canción" : (item.title || "Cargando...");
-      const artist = isError ? `Fallo de resolución: ${item.youtubeId}` : (item.artist || "Cargando...");
-      
-      // Trigger persistent notification if error has not been shown yet
-      if (isError && !shownErrors.has(item.uuid)) {
-        shownErrors.add(item.uuid);
-        showPersistentError(item.youtubeId, item.title || "Canción en cola");
-      }
+  const currentQueueJson = JSON.stringify(state.queue.map(item => ({
+    uuid: item.uuid,
+    youtubeId: item.youtubeId,
+    title: item.title,
+    artist: item.artist,
+    duration: item.duration
+  })));
 
-      return `
-        <li class="queue-item ${isError ? 'border-red-500/35 bg-red-500/5 dark:bg-red-500/10' : ''}" data-uuid="${item.uuid}" draggable="${!isGuest && !isError}">
-          <div class="item-left" style="pointer-events: none;">
-            <span class="item-index">${index + 1}</span>
-            <div class="item-thumb-wrapper">
-              <img class="item-thumb" src="${getYouTubeThumbnail(item.youtubeId)}" alt="Thumb">
-            </div>
-            <div class="item-details">
-              <p class="item-title ${isError ? 'text-red-500 dark:text-red-400 font-semibold' : ''}" title="${title}">${title}</p>
-              <p class="item-id">${artist} • ID: ${item.youtubeId}</p>
-            </div>
-          </div>
-          ${!isGuest ? `
-            <div class="item-actions flex items-center gap-1.5 shrink-0">
-              ${index > 0 ? `
-                <button class="text-slate-400 hover:text-procyon-lightIndigo dark:hover:text-procyon-indigo p-1 transition-all" data-action="move-up" data-index="${index}" title="Subir">
-                  <i class="fa-solid fa-chevron-up text-xs sm:text-sm"></i>
-                </button>
-              ` : ''}
-              ${index < state.queue.length - 1 ? `
-                <button class="text-slate-400 hover:text-procyon-lightIndigo dark:hover:text-procyon-indigo p-1 transition-all" data-action="move-down" data-index="${index}" title="Bajar">
-                  <i class="fa-solid fa-chevron-down text-xs sm:text-sm"></i>
-                </button>
-              ` : ''}
-              <button class="btn-remove" data-action="remove-track" data-uuid="${item.uuid}" title="Eliminar canción">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-          ` : ''}
+  if (currentQueueJson !== lastRenderedQueueJson) {
+    lastRenderedQueueJson = currentQueueJson;
+    
+    if (state.queue.length === 0) {
+      elements.queueList.innerHTML = `
+        <li class="queue-placeholder text-center py-12 text-slate-400 dark:text-slate-500">
+          <i class="fa-solid fa-list-ul text-3xl mb-3 opacity-40"></i>
+          <p class="text-xs sm:text-sm">La cola está vacía. Añade algunas canciones arriba.</p>
         </li>
       `;
-    }).join('');
+    } else {
+      const isGuest = role === 'guest';
+      elements.queueList.innerHTML = state.queue.map((item, index) => {
+        const isError = item.duration === -1;
+        const title = isError ? "No se pudo cargar la canción" : (item.title || "Cargando...");
+        const artist = isError ? `Fallo de resolución: ${item.youtubeId}` : (item.artist || "Cargando...");
+        
+        // Trigger persistent notification if error has not been shown yet
+        if (isError && !shownErrors.has(item.uuid)) {
+          shownErrors.add(item.uuid);
+          showPersistentError(item.youtubeId, item.title || "Canción en cola");
+        }
+
+        return `
+          <li class="queue-item ${isError ? 'border-red-500/35 bg-red-500/5 dark:bg-red-500/10' : ''}" data-uuid="${item.uuid}" draggable="${!isGuest && !isError}">
+            <div class="item-left" style="pointer-events: none;">
+              <span class="item-index">${index + 1}</span>
+              <div class="item-thumb-wrapper">
+                <img class="item-thumb" src="${getYouTubeThumbnail(item.youtubeId)}" alt="Thumb">
+              </div>
+              <div class="item-details">
+                <p class="item-title ${isError ? 'text-red-500 dark:text-red-400 font-semibold' : ''}" title="${title}">${title}</p>
+                <p class="item-id">${artist} • ID: ${item.youtubeId}</p>
+              </div>
+            </div>
+            ${!isGuest ? `
+              <div class="item-actions flex items-center gap-1.5 shrink-0">
+                ${index > 0 ? `
+                  <button class="text-slate-400 hover:text-procyon-lightIndigo dark:hover:text-procyon-indigo p-1 transition-all" data-action="move-up" data-index="${index}" title="Subir">
+                    <i class="fa-solid fa-chevron-up text-xs sm:text-sm"></i>
+                  </button>
+                ` : ''}
+                ${index < state.queue.length - 1 ? `
+                  <button class="text-slate-400 hover:text-procyon-lightIndigo dark:hover:text-procyon-indigo p-1 transition-all" data-action="move-down" data-index="${index}" title="Bajar">
+                    <i class="fa-solid fa-chevron-down text-xs sm:text-sm"></i>
+                  </button>
+                ` : ''}
+                <button class="btn-remove" data-action="remove-track" data-uuid="${item.uuid}" title="Eliminar canción">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            ` : ''}
+          </li>
+        `;
+      }).join('');
+    }
   }
   
   // Apply vertical carousel scroll effect
@@ -635,7 +648,6 @@ export function updateQueueScrollEffect() {
   if (items.length === 0) return;
 
   const containerRect = container.getBoundingClientRect();
-  const fadeThreshold = 40; // Pixels from top/bottom borders where the shrink/fade effect starts
 
   items.forEach((item) => {
     if (item.classList.contains('dragging')) {
@@ -649,23 +661,20 @@ export function updateQueueScrollEffect() {
     let ratio = 1;
     let isTop = false;
 
-    // Check distance of item edges relative to container boundaries
-    const distToTop = itemRect.top - containerRect.top;
-    const distToBottom = containerRect.bottom - itemRect.bottom;
-
-    if (distToTop < fadeThreshold) {
+    // Check overlaps with top and bottom container boundaries
+    if (itemRect.top < containerRect.top) {
+      // Scrolled past top boundary
       isTop = true;
       const visibleHeight = itemRect.bottom - containerRect.top;
-      const totalRange = fadeThreshold + itemHeight;
-      ratio = Math.min(1, Math.max(0, visibleHeight / totalRange));
-    } else if (distToBottom < fadeThreshold) {
+      ratio = Math.min(1, Math.max(0, visibleHeight / itemHeight));
+    } else if (itemRect.bottom > containerRect.bottom) {
+      // Scrolled past bottom boundary
       const visibleHeight = containerRect.bottom - itemRect.top;
-      const totalRange = fadeThreshold + itemHeight;
-      ratio = Math.min(1, Math.max(0, visibleHeight / totalRange));
+      ratio = Math.min(1, Math.max(0, visibleHeight / itemHeight));
     }
 
     if (ratio < 1) {
-      // Smoothly shrink, pull back (3D depth), rotate slightly, and fade out at the edges
+      // Smoothly shrink, rotate slightly, and fade out only when crossing boundary edges
       const scale = 0.8 + 0.2 * ratio;
       const opacity = ratio;
       const translateZ = -40 * (1 - ratio);
