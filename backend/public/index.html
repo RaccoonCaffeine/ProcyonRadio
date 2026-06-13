@@ -216,8 +216,8 @@
           </button>
         </div>
 
-        <!-- Settings Panel (Fade control) -->
-        <div class="settings-panel bg-slate-100/50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/[0.06] rounded-xl p-3 sm:p-4 mb-4 transition-colors duration-300">
+        <!-- Settings Panel (Fade control & Fallback Volume) -->
+        <div class="settings-panel bg-slate-100/50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/[0.06] rounded-xl p-3 sm:p-4 mb-4 transition-colors duration-300 flex flex-col gap-3">
           <div class="setting-item flex flex-row justify-between items-center gap-3">
             <span class="setting-label text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-2 shrink-0">
               <i class="fa-solid fa-sliders text-procyon-lightIndigo dark:text-procyon-indigo"></i> Desvanecimiento:
@@ -225,6 +225,15 @@
             <div class="setting-control flex items-center gap-2.5 flex-1 max-w-[180px] min-w-0">
               <input type="range" id="fade-slider" min="0" max="10" value="3" class="settings-slider flex-1 w-full min-w-0 cursor-pointer">
               <span id="fade-value" class="text-xs sm:text-sm font-bold text-procyon-lightCyan dark:text-procyon-cyan w-8 text-right">3s</span>
+            </div>
+          </div>
+          <div class="setting-item flex flex-row justify-between items-center gap-3">
+            <span class="setting-label text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-2 shrink-0">
+              <i class="fa-solid fa-volume-low text-procyon-lightIndigo dark:text-procyon-indigo"></i> Vol. Espera:
+            </span>
+            <div class="setting-control flex items-center gap-2.5 flex-1 max-w-[180px] min-w-0">
+              <input type="range" id="fallback-volume-slider" min="0" max="100" value="5" class="settings-slider flex-1 w-full min-w-0 cursor-pointer">
+              <span id="fallback-volume-value" class="text-xs sm:text-sm font-bold text-procyon-lightCyan dark:text-procyon-cyan w-8 text-right">5%</span>
             </div>
           </div>
         </div>

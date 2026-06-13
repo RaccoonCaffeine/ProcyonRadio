@@ -466,3 +466,58 @@ html.dark .toast-error {
   color: #fca5a5;
   border-color: rgba(220, 38, 38, 0.25);
 }
+
+/* ─── Ultra-small Viewport Optimizations (e.g. GTA V Mobile Phone Browser) ─── */
+@media (max-width: 380px) {
+  /* Reduce padding on the queue item to maximize title space */
+  .queue-item {
+    padding: 6px 8px !important;
+    gap: 4px !important;
+  }
+  
+  /* Hide the index number to save space */
+  .item-index {
+    display: none !important;
+  }
+
+  /* Hide the thumbnail to gain significant horizontal space */
+  .item-thumb-wrapper {
+    display: none !important;
+  }
+
+  /* Reduce gap on the container */
+  .item-left {
+    gap: 4px !important;
+  }
+
+  /* Hide up/down chevron buttons to leave only the delete button and title */
+  .item-actions button[data-action="move-up"],
+  .item-actions button[data-action="move-down"] {
+    display: none !important;
+  }
+
+  /* Reduce space on actions and delete button */
+  .item-actions {
+    gap: 2px !important;
+  }
+  .btn-remove {
+    margin-left: 2px !important;
+    padding: 4px !important;
+    width: 24px !important;
+    height: 24px !important;
+  }
+
+  /* Make details fill up the rest of the layout */
+  .item-details {
+    max-width: calc(100vw - 80px) !important; /* Leave space for delete button and padding */
+  }
+
+  /* Ensure text ellipsis takes effect properly on small viewports */
+  .item-title {
+    font-size: 0.75rem !important;
+  }
+  .item-id {
+    font-size: 0.65rem !important;
+  }
+}
+

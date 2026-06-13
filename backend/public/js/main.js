@@ -623,6 +623,27 @@ function initStaticListeners() {
     setIsDraggingSettings(false);
   });
 
+  // Fallback Volume slider events
+  if (elements.fallbackVolumeSlider) {
+    elements.fallbackVolumeSlider.addEventListener('input', () => {
+      setIsDraggingSettings(true);
+      elements.fallbackVolumeValue.textContent = `${elements.fallbackVolumeSlider.value}%`;
+    });
+
+    elements.fallbackVolumeSlider.addEventListener('change', async () => {
+      const value = parseInt(elements.fallbackVolumeSlider.value);
+      try {
+        const data = await saveSettings({ fallbackVolume: value });
+        if (data) {
+          elements.fallbackVolumeValue.textContent = `${state.fallbackVolume}%`;
+        }
+      } catch (err) {
+        console.error("Fallback volume save error:", err.message);
+      }
+      setIsDraggingSettings(false);
+    });
+  }
+
   // Add Song Form submissions
   elements.addSongForm.addEventListener('submit', async (e) => {
     e.preventDefault();

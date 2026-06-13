@@ -123,6 +123,7 @@ class StreamWorker {
   public isPaused = false;
   public isSeeking = false;
   public fadeDuration = 3;
+  public fallbackVolume = 5;
 
   /** Writes the current track information to text files to dynamically reload drawtext overlays. */
   private writeOverlayText(title: string, artist: string): void {
@@ -349,6 +350,12 @@ class StreamWorker {
         if (fade > 0) {
           args.push("-af", `afade=t=in:ss=0:d=${fade.toFixed(1)},afade=t=out:st=${(duration - fade).toFixed(1)}:d=${fade.toFixed(1)}`);
         }
+      }
+
+      // Apply dynamic volume reduction for fallback audio
+      if (isFallback) {
+        const volumeFactor = (this.fallbackVolume / 100).toFixed(2);
+        args.push("-af", `volume=${volumeFactor}`);
       }
 
       if (!isFallback && duration > 0) {

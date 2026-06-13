@@ -12,6 +12,7 @@ const initialState = {
   isFallback: true,
   isPaused: false,
   fadeDuration: 3,
+  fallbackVolume: 5,
   outputMode: 'youtube',
   allowGuestAdd: true,
   currentTrack: null,

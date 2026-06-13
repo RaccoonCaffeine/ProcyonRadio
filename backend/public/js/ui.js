@@ -39,6 +39,8 @@ export const elements = {
 
   fadeSlider: document.getElementById('fade-slider'),
   fadeValue: document.getElementById('fade-value'),
+  fallbackVolumeSlider: document.getElementById('fallback-volume-slider'),
+  fallbackVolumeValue: document.getElementById('fallback-volume-value'),
 
   addSongForm: document.getElementById('add-song-form'),
   songUrlInput: document.getElementById('song-url'),
@@ -310,9 +312,13 @@ export function applyRolePrivileges() {
   elements.progressSlider.disabled = !canOperate;
   elements.progressSlider.style.cursor = canOperate ? 'pointer' : 'not-allowed';
 
-  // Fade Settings Slider requires Admin+
+  // Settings Sliders require Admin+
   elements.fadeSlider.disabled = !isOwnerOrAdmin;
   elements.fadeSlider.style.cursor = isOwnerOrAdmin ? 'pointer' : 'not-allowed';
+  if (elements.fallbackVolumeSlider) {
+    elements.fallbackVolumeSlider.disabled = !isOwnerOrAdmin;
+    elements.fallbackVolumeSlider.style.cursor = isOwnerOrAdmin ? 'pointer' : 'not-allowed';
+  }
 
   // Add song input control
   const canAdd = state.allowGuestAdd || canOperate;
@@ -486,10 +492,14 @@ export function updateUI() {
     elements.progressSlider.disabled = true;
   }
 
-  // 3. Update Fade Duration Settings slider
+  // 3. Update Settings sliders
   if (elements.fadeSlider && !isDraggingSettings) {
     elements.fadeSlider.value = state.fadeDuration;
     elements.fadeValue.textContent = `${state.fadeDuration}s`;
+  }
+  if (elements.fallbackVolumeSlider && !isDraggingSettings) {
+    elements.fallbackVolumeSlider.value = state.fallbackVolume;
+    elements.fallbackVolumeValue.textContent = `${state.fallbackVolume}%`;
   }
 
   // 3.5. Update Cloudflare Tunnel Banner & settings details

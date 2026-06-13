@@ -42,6 +42,7 @@ export async function fetchStatus() {
     state.isFallback = data.isFallback;
     state.isPaused = data.isPaused;
     state.fadeDuration = data.fadeDuration;
+    state.fallbackVolume = data.fallbackVolume;
     state.outputMode = data.outputMode;
     state.allowGuestAdd = data.allowGuestAdd;
     state.publicUrl = data.publicUrl;
@@ -151,6 +152,7 @@ export async function saveSettings(settingsData) {
     state.outputMode = data.settings.outputMode;
     state.allowGuestAdd = data.settings.allowGuestAdd;
     state.fadeDuration = data.settings.fadeDuration;
+    state.fallbackVolume = data.settings.fallbackVolume;
     await fetchStatus();
   }
   return data;

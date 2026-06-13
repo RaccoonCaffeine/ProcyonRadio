@@ -16,6 +16,7 @@ export interface AppSettings {
     bitrate: string;
   };
   fadeDuration: number;
+  fallbackVolume: number;
   potProviderUrl: string;
 }
 
@@ -108,6 +109,7 @@ class SettingsManager {
         bitrate: process.env["ICECAST_BITRATE"] || "128k",
       },
       fadeDuration: Number(process.env["FADE_DURATION"]) || 3,
+      fallbackVolume: Number(process.env["FALLBACK_VOLUME"]) || 5,
       potProviderUrl: process.env["POT_PROVIDER_URL"] || defaultPotUrl,
     };
   }
@@ -129,6 +131,7 @@ class SettingsManager {
         bitrate: parsed.icecast?.bitrate ?? defaults.icecast.bitrate,
       },
       fadeDuration: parsed.fadeDuration ?? defaults.fadeDuration,
+      fallbackVolume: parsed.fallbackVolume ?? defaults.fallbackVolume,
       potProviderUrl: parsed.potProviderUrl ?? defaults.potProviderUrl,
     };
   }

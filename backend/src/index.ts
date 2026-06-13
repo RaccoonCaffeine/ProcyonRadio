@@ -261,6 +261,7 @@ app.get("/api/status", (_req: Request, res: Response) => {
     isFallback: streamWorker.isFallback,
     isPaused: streamWorker.isPaused,
     fadeDuration: streamWorker.fadeDuration,
+    fallbackVolume: streamWorker.fallbackVolume,
     outputMode: settingsManager.getSettings().outputMode,
     allowGuestAdd: settingsManager.getSettings().allowGuestAdd,
     exposeServer: settingsManager.getSettings().exposeServer,
@@ -435,6 +436,9 @@ app.post("/api/settings", requireRole(["owner", "admin"]), (req: Request, res: R
     if (typeof newSettings.fadeDuration === "number") {
       streamWorker.fadeDuration = newSettings.fadeDuration;
     }
+    if (typeof newSettings.fallbackVolume === "number") {
+      streamWorker.fallbackVolume = newSettings.fallbackVolume;
+    }
     
     const oldSettings = settingsManager.getSettings();
     settingsManager.update(newSettings);
@@ -606,6 +610,7 @@ app.listen(PORT, "0.0.0.0", async () => {
     if (licenseActive) {
       if (streamWorker) {
         streamWorker.fadeDuration = settings.fadeDuration;
+        streamWorker.fallbackVolume = settings.fallbackVolume ?? 5;
         streamWorker.start().catch((err) => {
           console.error("❌ StreamWorker fatal error:", err);
           process.exit(1);
