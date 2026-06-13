@@ -635,12 +635,11 @@ export function showSearchResults(results) {
 
   dropdown.classList.remove('hidden');
 }
-
-/**
- * Calculates and applies 3D transformations, scaling, and opacity fades on queue items
- * only when they approach or cross the top and bottom boundaries of the scroll container.
+ /**
+ * Smoothly fades out queue items only when they scroll past the top and bottom borders.
+ * Completely removes 3D cylindrical rotation to maintain flat list integrity.
  */
-export function updateQueueScrollEffect() {
+  export function updateQueueScrollEffect() {
   const container = elements.queueListWrapper;
   if (!container) return;
 
@@ -648,8 +647,10 @@ export function updateQueueScrollEffect() {
   if (items.length === 0) return;
 
   const containerRect = container.getBoundingClientRect();
+  const tolerance = 4; // Tolerancia en píxeles
+  const scrollTop = container.scrollTop;
 
-  items.forEach((item) => {
+  items.forEach((item, index) => {
     if (item.classList.contains('dragging')) {
       item.style.transform = '';
       item.style.opacity = '';
@@ -658,36 +659,26 @@ export function updateQueueScrollEffect() {
 
     const itemRect = item.getBoundingClientRect();
     const itemHeight = itemRect.height || 48;
-    let ratio = 1;
-    let isTop = false;
+    let opacity = 1;
 
-    // Check overlaps with top and bottom container boundaries
-    if (itemRect.top < containerRect.top) {
-      // Scrolled past top boundary
-      isTop = true;
-      const visibleHeight = itemRect.bottom - containerRect.top;
-      ratio = Math.min(1, Math.max(0, visibleHeight / itemHeight));
-    } else if (itemRect.bottom > containerRect.bottom) {
-      // Scrolled past bottom boundary
-      const visibleHeight = containerRect.bottom - itemRect.top;
-      ratio = Math.min(1, Math.max(0, visibleHeight / itemHeight));
-    }
-
-    if (ratio < 1) {
-      // Smoothly shrink, rotate slightly, and fade out only when crossing boundary edges
-      const scale = 0.8 + 0.2 * ratio;
-      const opacity = ratio;
-      const translateZ = -40 * (1 - ratio);
-      const rotateX = (isTop ? 1 : -1) * 15 * (1 - ratio);
-
-      item.style.transform = `perspective(500px) rotateX(${rotateX}deg) translateZ(${translateZ}px) scale(${scale})`;
-      item.style.opacity = opacity;
+    // Si estamos al inicio del contenedor, la primera canción debe mantenerse estática y completamente visible
+    if (index === 0 && scrollTop <= 0) {
+      opacity = 1;
     } else {
-      // Flat and normal in the active area
-      item.style.transform = '';
-      item.style.opacity = '';
+      // Comprobar solapamiento con los bordes superior e inferior del contenedor
+      if (itemRect.top < containerRect.top - tolerance) {
+        // Desplazado más allá del borde superior
+        const visibleHeight = itemRect.bottom - containerRect.top;
+        opacity = Math.min(1, Math.max(0, visibleHeight / itemHeight));
+      } else if (itemRect.bottom > containerRect.bottom + tolerance) {
+        // Desplazado más allá del borde inferior
+        const visibleHeight = containerRect.bottom - itemRect.top;
+        opacity = Math.min(1, Math.max(0, visibleHeight / itemHeight));
+      }
     }
 
-    item.style.transformOrigin = 'center center';
+    item.style.opacity = opacity;
+    // Limpiar transforms para evitar glitches de carrusel 3D
+    item.style.transform = '';
   });
 }

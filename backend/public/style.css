@@ -275,27 +275,25 @@ html.dark .settings-slider::-moz-range-thumb {
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.8) !important;
 }
 
-.queue-list-wrapper {
-  perspective: 600px;
-  transform-style: preserve-3d;
-}
-.queue-list {
-  transform-style: preserve-3d;
-}
+
 
 /* ─── Queue List Items ──────────────────────────────────────── */
-.queue-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: rgba(15, 23, 42, 0.02);
-  border: 1px solid rgba(15, 23, 42, 0.05);
-  border-radius: 12px;
-  padding: 10px 14px;
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  width: 100%;
-  min-width: 0;
-}
+ .queue-item {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   background: rgba(15, 23, 42, 0.02);
+   border: 1px solid rgba(15, 23, 42, 0.05);
+   border-radius: 12px;
+   padding: 10px 14px;
+   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);  
+   transition: background 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
+             border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
+             box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
+             transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+   width: 100%;
+   min-width: 0;
+ }
 
 html.dark .queue-item {
   background: rgba(255, 255, 255, 0.02);
