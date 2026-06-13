@@ -30,7 +30,7 @@ if not exist "!SOURCE_DIR!\ProcyonRadio.exe" (
 )
 
 REM Copiar ejecutables
-for %%F in (ProcyonRadio.exe ffmpeg.exe yt-dlp.exe) do (
+for %%F in (ProcyonRadio.exe ffmpeg.exe yt-dlp.exe cloudflared.exe) do (
     if exist "!SOURCE_DIR!\%%F" (
         copy /Y "!SOURCE_DIR!\%%F" "!INSTALL_PATH!\%%F" >nul
         echo   ✓ %%F

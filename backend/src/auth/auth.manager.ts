@@ -20,6 +20,7 @@ export interface Session {
 }
 
 const USERS_FILE_PATH = path.join(process.cwd(), "data", "users.json");
+const SESSIONS_FILE_PATH = path.join(process.cwd(), "data", "sessions.json");
 const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 class AuthManager {
@@ -28,6 +29,7 @@ class AuthManager {
 
   constructor() {
     this.load();
+    this.loadSessions();
   }
 
   /** Loads users from users.json. */
@@ -57,6 +59,43 @@ class AuthManager {
       fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(this.users, null, 2), "utf-8");
     } catch (err) {
       console.error("❌ Failed to write users.json:", err);
+    }
+  }
+
+  /** Loads sessions from sessions.json. */
+  private loadSessions(): void {
+    if (fs.existsSync(SESSIONS_FILE_PATH)) {
+      try {
+        const fileContent = fs.readFileSync(SESSIONS_FILE_PATH, "utf-8");
+        const sessionList = JSON.parse(fileContent) as [string, Session][];
+        this.sessions = new Map(sessionList);
+        
+        // Clean expired sessions on load
+        const now = Date.now();
+        let expiredFound = false;
+        for (const [token, session] of this.sessions.entries()) {
+          if (now > session.expiresAt) {
+            this.sessions.delete(token);
+            expiredFound = true;
+          }
+        }
+        if (expiredFound) {
+          this.saveSessions();
+        }
+      } catch (err) {
+        console.error("⚠️ Error reading sessions.json, initialized empty sessions:", err);
+        this.sessions = new Map();
+      }
+    }
+  }
+
+  /** Saves sessions to sessions.json. */
+  private saveSessions(): void {
+    try {
+      const sessionList = Array.from(this.sessions.entries());
+      fs.writeFileSync(SESSIONS_FILE_PATH, JSON.stringify(sessionList, null, 2), "utf-8");
+    } catch (err) {
+      console.error("❌ Failed to write sessions.json:", err);
     }
   }
 
@@ -174,10 +213,15 @@ class AuthManager {
     this.save();
 
     // Invalidate sessions for deleted user
+    let sessionsChanged = false;
     for (const [token, session] of this.sessions.entries()) {
       if (session.username === cleanTarget) {
         this.sessions.delete(token);
+        sessionsChanged = true;
       }
+    }
+    if (sessionsChanged) {
+      this.saveSessions();
     }
   }
 
@@ -213,12 +257,14 @@ class AuthManager {
     };
 
     this.sessions.set(token, session);
+    this.saveSessions();
     return session;
   }
 
   /** Invalidates a session token. */
   logout(token: string): void {
     this.sessions.delete(token);
+    this.saveSessions();
   }
 
   /** Resolves session token and returns active session details. Cleans up expired sessions. */
@@ -228,6 +274,7 @@ class AuthManager {
 
     if (Date.now() > session.expiresAt) {
       this.sessions.delete(token);
+      this.saveSessions();
       return null;
     }
 
