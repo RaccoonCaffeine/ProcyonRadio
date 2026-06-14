@@ -15,11 +15,24 @@ export interface QueueItem {
 class QueueManager {
   private queue: QueueItem[] = [];
   private history: string[] = [];
+  private failedNotifications: { youtubeId: string; title: string }[] = [];
   
   // Background metadata resolver queue
   private pendingMetadata: QueueItem[] = [];
   private activeResolutions = 0;
   private readonly MAX_CONCURRENT_RESOLUTIONS = 2;
+
+  /** Adds a failed notification for status polling. */
+  addFailedNotification(youtubeId: string, title: string) {
+    this.failedNotifications.push({ youtubeId, title });
+  }
+
+  /** Gets and clears all failed notifications. */
+  getAndClearFailedNotifications() {
+    const notifications = [...this.failedNotifications];
+    this.failedNotifications = [];
+    return notifications;
+  }
 
   /** Returns a shallow copy of the current queue. */
   getQueue(): QueueItem[] {
@@ -28,10 +41,11 @@ class QueueManager {
 
   /** Creates a new QueueItem and pushes it to the back of the queue. */
   add(youtubeId: string): QueueItem {
+    const trackNumber = String(this.queue.length + 1).padStart(2, '0');
     const item: QueueItem = {
       uuid: uuidv4(),
       youtubeId,
-      title: "Cargando...",
+      title: `Canción #${trackNumber}`,
       artist: "Cargando..."
     };
     this.queue.push(item);
@@ -48,7 +62,7 @@ class QueueManager {
     const item: QueueItem = {
       uuid: uuidv4(),
       youtubeId,
-      title: "Cargando...",
+      title: "Canción #01",
       artist: "Cargando..."
     };
     this.queue.unshift(item);
@@ -93,12 +107,11 @@ class QueueManager {
       })
       .catch((err) => {
         console.warn(`[Queue] Failed to load metadata for ${nextItem.youtubeId}:`, err instanceof Error ? err.message : String(err));
-        const found = this.queue.find((q) => q.uuid === nextItem.uuid);
-        if (found) {
-          found.title = nextItem.title && nextItem.title !== "Cargando..." ? nextItem.title : nextItem.youtubeId;
-          found.artist = "Fallo de resolución / Match no encontrado";
-          found.duration = -1; // -1 indicates resolution error
-        }
+        this.addFailedNotification(
+          nextItem.youtubeId,
+          nextItem.title && !nextItem.title.startsWith("Cargando...") ? nextItem.title : "Canción en cola"
+        );
+        this.remove(nextItem.uuid);
       })
       .finally(() => {
         this.activeResolutions--;

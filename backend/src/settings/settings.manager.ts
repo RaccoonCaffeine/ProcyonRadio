@@ -18,6 +18,10 @@ export interface AppSettings {
   fadeDuration: number;
   fallbackVolume: number;
   potProviderUrl: string;
+  streamPort: number;
+  useCloudflare: boolean;
+  localBitrate: string;
+  streamServerEnabled: boolean;
 }
 
 const SETTINGS_FILE_PATH = path.join(process.cwd(), "data", "settings.json");
@@ -111,6 +115,10 @@ class SettingsManager {
       fadeDuration: Number(process.env["FADE_DURATION"]) || 3,
       fallbackVolume: Number(process.env["FALLBACK_VOLUME"]) || 5,
       potProviderUrl: process.env["POT_PROVIDER_URL"] || defaultPotUrl,
+      streamPort: Number(process.env["STREAM_PORT"]) || 8000,
+      useCloudflare: process.env["USE_CLOUDFLARE"] === "true" || false,
+      localBitrate: process.env["LOCAL_BITRATE"] || "320k",
+      streamServerEnabled: process.env["STREAM_SERVER_ENABLED"] !== "false",
     };
   }
 
@@ -133,6 +141,10 @@ class SettingsManager {
       fadeDuration: parsed.fadeDuration ?? defaults.fadeDuration,
       fallbackVolume: parsed.fallbackVolume ?? defaults.fallbackVolume,
       potProviderUrl: parsed.potProviderUrl ?? defaults.potProviderUrl,
+      streamPort: parsed.streamPort ?? defaults.streamPort,
+      useCloudflare: parsed.useCloudflare ?? defaults.useCloudflare,
+      localBitrate: parsed.localBitrate ?? defaults.localBitrate,
+      streamServerEnabled: parsed.streamServerEnabled ?? defaults.streamServerEnabled,
     };
   }
 }

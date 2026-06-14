@@ -357,106 +357,92 @@
 
       <!-- Navigation Tabs -->
       <div class="flex border-b border-slate-200 dark:border-white/[0.08] mb-4 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 gap-4">
-        <button id="tab-btn-stream" class="pb-2 border-b-2 border-procyon-lightIndigo dark:border-procyon-indigo text-procyon-lightIndigo dark:text-procyon-indigo">Transmisión</button>
+        <button id="tab-btn-stream" class="pb-2 border-b-2 border-procyon-lightIndigo dark:border-procyon-indigo text-procyon-lightIndigo dark:text-procyon-indigo">Streaming Local</button>
         <button id="tab-btn-users" class="pb-2 border-b-2 border-transparent hover:text-slate-800 dark:hover:text-white">Usuarios</button>
         <button id="tab-btn-general" class="pb-2 border-b-2 border-transparent hover:text-slate-800 dark:hover:text-white">General</button>
       </div>
 
       <!-- Tab Content: Stream Settings -->
       <div id="tab-stream" class="flex flex-col gap-4">
-        <div>
-          <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">Destino de Salida</label>
-          <select id="settings-output-mode" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
-            <option value="youtube">YouTube Live (Video + Audio RTMP)</option>
-            <option value="icecast">Radio Online / Icecast (Solo Audio)</option>
-          </select>
+        <!-- Obsolete output modes hidden to preserve JS DOM references safely -->
+        <div class="hidden">
+          <select id="settings-output-mode"><option value="icecast">icecast</option></select>
+          <input type="text" id="settings-yt-url" value="">
+          <input type="password" id="settings-yt-key" value="">
+          <select id="settings-ice-type"><option value="icecast">icecast</option></select>
+          <input type="number" id="settings-ice-port" value="8000">
+          <input type="text" id="settings-ice-host" value="">
+          <input type="text" id="settings-ice-mountpoint" value="">
+          <input type="password" id="settings-ice-password" value="">
+          <select id="settings-ice-format"><option value="mp3">MP3</option></select>
+          <select id="settings-ice-bitrate"><option value="128k">128k</option></select>
         </div>
 
-        <!-- YouTube fields -->
-        <div id="settings-group-youtube" class="flex flex-col gap-3">
-          <div>
-            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">URL de RTMP YouTube</label>
-            <input type="text" id="settings-yt-url" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
+        <div class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium leading-normal bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.04] p-3.5 rounded-xl flex flex-col gap-2">
+          <div class="font-bold text-slate-800 dark:text-white flex items-center gap-1.5 text-xs">
+            <i class="fa-solid fa-circle-info text-procyon-lightIndigo dark:text-procyon-indigo"></i>
+            Transmisión Integrada Embebida
           </div>
           <div>
-            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Clave de Transmisión (Stream Key)</label>
-            <div class="relative">
-              <input type="password" id="settings-yt-key" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl pl-3 pr-10 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
-              <button type="button" id="btn-toggle-key-visibility" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white text-sm">
-                <i class="fa-solid fa-eye" id="toggle-key-icon"></i>
-              </button>
-            </div>
+            ProcyonRadio ahora cuenta con su propio servidor de streaming local integrado. El audio se procesará en tiempo real en tu máquina y se transmitirá directamente. No necesitas configurar servidores de streaming externos.
           </div>
         </div>
 
-        <!-- Icecast fields -->
-        <div id="settings-group-icecast" class="flex flex-col gap-3 hidden">
-          <!-- Helpful signup text & tutorial -->
-          <div class="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium leading-normal bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.04] p-3.5 rounded-xl flex flex-col gap-2.5">
-            <div>
-              Si no tienes una cuenta, regístrate gratis en <a href="https://control-panel.cloudl2mr.com/signup" target="_blank" class="text-procyon-lightCyan dark:text-procyon-cyan hover:underline font-semibold inline-flex items-center gap-1"><i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i> Listen2MyRadio</a> para obtener tus credenciales.
-            </div>
-            <div class="border-t border-slate-200 dark:border-white/[0.06] pt-2">
-              <h4 class="font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5 text-xs"><i class="fa-solid fa-book-open text-procyon-lightCyan dark:text-procyon-cyan"></i> Guía rápida de configuración:</h4>
-              <ol class="list-decimal pl-4 space-y-1 text-slate-500 dark:text-slate-400">
-                <li>Inicia sesión en tu panel de <a href="https://control-panel.cloudl2mr.com/login" target="_blank" class="text-procyon-lightCyan dark:text-procyon-cyan hover:underline font-semibold">Listen2MyRadio</a>.</li>
-                <li>Ve a <strong>Change Type</strong> (Cambiar Tipo de Servidor).</li>
-                <li>Elige <strong>ICECAST2 - OGG AND MP3 WORKING</strong> e ingresa <code class="bg-slate-200 dark:bg-white/10 px-1 py-0.5 rounded text-procyon-lightIndigo dark:text-procyon-indigo font-mono font-bold">stream</code> como Mount Point. Haz clic en <strong>Save</strong>.</li>
-                <li>Inicia tu servidor en su panel y copia las credenciales asignadas abajo:</li>
-              </ol>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Tipo de Servidor</label>
-              <select id="settings-ice-type" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
-                <option value="icecast" selected>Listen2MyRadio (Icecast) / ZenoMedia</option>
-                <option value="shoutcast">SHOUTcast v1 (Legacy / L2MR)</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Puerto (Port)</label>
-              <input type="number" id="settings-ice-port" placeholder="ej. 8000" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
-            </div>
-          </div>
-
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           <div>
-            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Nombre del Servidor / Host</label>
-            <input type="text" id="settings-ice-host" placeholder="ej. 109.169.23.23 o stream.listen2myradio.com" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
+            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Puerto de Streaming Local</label>
+            <input type="number" id="settings-stream-port" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none" placeholder="ej. 8000">
           </div>
-
-          <div id="settings-ice-mount-group" class="">
-            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Punto de Montaje (Mountpoint)</label>
-            <input type="text" id="settings-ice-mountpoint" placeholder="ej. /live o /stream" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
+          <div id="settings-local-bitrate-group">
+            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Bitrate de Audio Local</label>
+            <select id="settings-local-bitrate" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
+              <option value="128k">128 kbps (Bajo)</option>
+              <option value="192k">192 kbps (Medio)</option>
+              <option value="256k">256 kbps (Alto)</option>
+              <option value="320k">320 kbps (Máximo)</option>
+            </select>
           </div>
-
-          <div>
-            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Contraseña de Transmisión (Stream Password)</label>
-            <div class="relative">
-              <input type="password" id="settings-ice-password" placeholder="Tu contraseña de transmisión" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl pl-3 pr-10 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
-              <button type="button" id="btn-toggle-ice-password-visibility" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white text-sm">
-                <i class="fa-solid fa-eye" id="toggle-ice-password-icon"></i>
-              </button>
-            </div>
+          <div class="flex items-end md:pb-2.5 pt-2">
+            <label class="relative inline-flex items-center cursor-not-allowed opacity-60">
+              <input type="checkbox" id="settings-use-cloudflare" disabled class="sr-only peer">
+              <div class="relative w-9 h-5 bg-slate-200 dark:bg-white/10 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-procyon-lightIndigo dark:peer-checked:bg-procyon-indigo"></div>
+              <span class="ms-3 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">Optimizar Bitrate Cloudflare (128kbps)</span>
+            </label>
           </div>
+        </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Formato de Audio</label>
-              <select id="settings-ice-format" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
-                <option value="mp3">MP3</option>
-                <option value="aac">AAC (ADTS)</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Bitrate de Audio</label>
-              <select id="settings-ice-bitrate" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
-                <option value="96k">96 kbps</option>
-                <option value="128k">128 kbps (Recomendado)</option>
-                <option value="192k">192 kbps</option>
-                <option value="320k">320 kbps</option>
-              </select>
+        <!-- Streaming Server Toggle Setting -->
+        <div class="flex items-center pt-2">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="settings-stream-server-enabled" class="sr-only peer">
+            <div class="relative w-9 h-5 bg-slate-200 dark:bg-white/10 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-procyon-lightIndigo dark:peer-checked:bg-procyon-indigo"></div>
+            <span class="ms-3 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">Habilitar Servidor de Transmisión Local (Puerto <span id="label-stream-port">8000</span>/radio.mp3)</span>
+          </label>
+        </div>
+
+        <!-- Cloudflare Quick Tunnel Settings -->
+        <div class="border-t border-slate-200 dark:border-white/[0.06] pt-3 mt-1">
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="settings-expose-server" class="sr-only peer">
+            <div class="relative w-9 h-5 bg-slate-200 dark:bg-white/10 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-procyon-lightIndigo dark:peer-checked:bg-procyon-indigo"></div>
+            <span class="ms-3 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">Activar Túnel Público de Cloudflare (Exponer Web y Audio)</span>
+          </label>
+          <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 pl-[48px]">
+            Genera un enlace HTTPS seguro automático y gratuito para compartir el panel de control con amigos y transmitir el audio directamente a FiveM (sin abrir puertos en tu router ni configurar dominios).
+          </p>
+        </div>
+
+        <!-- Tunnel Status Info inside Settings -->
+        <div id="settings-tunnel-status-group" class="hidden mt-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl flex flex-col gap-2">
+          <div class="flex justify-between items-center text-xs">
+            <span class="font-bold text-emerald-600 dark:text-emerald-400">Enlace Web Público:</span>
+            <a id="settings-tunnel-web-url" href="#" target="_blank" class="text-procyon-lightCyan dark:text-procyon-cyan hover:underline truncate max-w-[250px] font-mono">https://...</a>
+          </div>
+          <div class="flex justify-between items-center text-xs border-t border-slate-200 dark:border-white/[0.06] pt-2">
+            <span class="font-bold text-emerald-600 dark:text-emerald-400">Audio Seguro (FiveM):</span>
+            <div class="flex items-center gap-2">
+              <span id="settings-tunnel-stream-url" class="font-mono text-slate-700 dark:text-slate-300 truncate max-w-[200px]">https://...</span>
+              <button type="button" id="btn-copy-settings-tunnel-stream" class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 text-2xs px-2 py-0.5 rounded bg-slate-200 dark:bg-white/10 font-semibold">Copiar</button>
             </div>
           </div>
         </div>
@@ -498,7 +484,7 @@
       <div id="tab-general" class="flex flex-col gap-4 hidden">
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Puerto (requiere reiniciar)</label>
+            <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Puerto del Panel Web (requiere reiniciar)</label>
             <input type="number" id="settings-port" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
           </div>
           <div>
@@ -513,32 +499,6 @@
           <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">URL de PoT Provider (WSL/Docker)</label>
           <input type="text" id="settings-pot-url" placeholder="ej. http://localhost:4416" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
           <span class="text-[10px] text-slate-400 dark:text-slate-500">Dejar vacío para transmisiones fuera de Docker en Windows.</span>
-        </div>
-
-        <!-- Cloudflare Quick Tunnel Settings -->
-        <div class="border-t border-slate-200 dark:border-white/[0.06] pt-3 mt-1">
-          <label class="flex items-center gap-2.5 cursor-pointer">
-            <input type="checkbox" id="settings-expose-server" class="w-4 h-4 rounded border-slate-300 dark:border-white/[0.15] dark:bg-white/5 text-procyon-lightIndigo dark:text-procyon-indigo focus:ring-procyon-lightIndigo/25">
-            <span class="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">Activar Túnel Público de Cloudflare (Exponer Web y Audio)</span>
-          </label>
-          <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 pl-7">
-            Genera un enlace HTTPS seguro automático y gratuito para compartir el panel de control con amigos y transmitir el audio directamente a FiveM (sin abrir puertos en tu router ni configurar dominios).
-          </p>
-        </div>
-
-        <!-- Tunnel Status Info inside Settings -->
-        <div id="settings-tunnel-status-group" class="hidden mt-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl flex flex-col gap-2">
-          <div class="flex justify-between items-center text-xs">
-            <span class="font-bold text-emerald-600 dark:text-emerald-400">Enlace Web Público:</span>
-            <a id="settings-tunnel-web-url" href="#" target="_blank" class="text-procyon-lightCyan dark:text-procyon-cyan hover:underline truncate max-w-[250px] font-mono">https://...</a>
-          </div>
-          <div class="flex justify-between items-center text-xs border-t border-slate-200 dark:border-white/[0.06] pt-2">
-            <span class="font-bold text-emerald-600 dark:text-emerald-400">Audio Seguro (FiveM):</span>
-            <div class="flex items-center gap-2">
-              <span id="settings-tunnel-stream-url" class="font-mono text-slate-700 dark:text-slate-300 truncate max-w-[200px]">https://...</span>
-              <button type="button" id="btn-copy-settings-tunnel-stream" class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 text-2xs px-2 py-0.5 rounded bg-slate-200 dark:bg-white/10 font-semibold">Copiar</button>
-            </div>
-          </div>
         </div>
       </div>
 

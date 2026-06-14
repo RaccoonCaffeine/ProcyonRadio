@@ -8,6 +8,7 @@ import https from "node:https";
 import { queueManager } from "./queue/queue.manager.js";
 import { extractYoutubeIds, searchTracks } from "./utils/youtube.js";
 import { streamWorker } from "./stream/stream.worker.js";
+import { streamServer } from "./stream/stream.server.js";
 import { settingsManager } from "./settings/settings.manager.js";
 import { authManager, type UserRole } from "./auth/auth.manager.js";
 import { tunnelManager } from "./utils/tunnel.manager.js";
@@ -279,6 +280,7 @@ app.get("/api/status", (_req: Request, res: Response) => {
       duration: current.duration,
       elapsed: Math.floor(elapsed),
     } : null,
+    failedNotifications: queueManager.getAndClearFailedNotifications(),
     queue: queueManager.getQueue(),
     hasHistory: queueManager.getHistory().length > 0,
   });
@@ -385,6 +387,21 @@ app.delete("/api/queue/remove/:uuid", requireRole(["owner", "admin"]), (req: Req
   }
 });
 
+/** Plays a specific song from the queue by its UUID immediately. Requires Operator+ */
+app.post("/api/queue/play/:uuid", requireRole(["owner", "admin", "operator"]), (req: Request, res: Response) => {
+  const { uuid } = req.params;
+  if (!uuid) {
+    res.status(400).json({ error: "Falta parámetro 'uuid'." });
+    return;
+  }
+  const success = streamWorker.playQueueItem(uuid);
+  if (success) {
+    res.json({ message: "Reproduciendo canción seleccionada.", queue: queueManager.getQueue() });
+  } else {
+    res.status(404).json({ error: "Canción no encontrada en la cola." });
+  }
+});
+
 /** Steps back to the previous track. Requires Operator+ */
 app.post("/api/queue/back", requireRole(["owner", "admin", "operator"]), (_req: Request, res: Response) => {
   const prevId = queueManager.popHistory();
@@ -461,8 +478,27 @@ app.post("/api/settings", requireRole(["owner", "admin"]), (req: Request, res: R
       }
     }
 
+    // Manage streaming server lifecycle on settings change
+    if (updatedSettings.streamServerEnabled !== oldSettings.streamServerEnabled) {
+      if (updatedSettings.streamServerEnabled) {
+        streamServer.start(updatedSettings.streamPort).catch((err) => {
+          console.error("❌ Error starting stream server:", err);
+        });
+      } else {
+        streamServer.stop();
+      }
+    } else if (updatedSettings.streamServerEnabled) {
+      if (updatedSettings.streamPort !== oldSettings.streamPort && streamServer.isRunning) {
+        streamServer.restart(updatedSettings.streamPort).catch((err) => {
+          console.error("❌ Error restarting stream server:", err);
+        });
+      }
+    }
+
     // Check if streaming settings changed to restart the encoder if it's active
     const streamSettingsChanged = 
+      oldSettings.useCloudflare !== updatedSettings.useCloudflare ||
+      oldSettings.localBitrate !== updatedSettings.localBitrate ||
       oldSettings.outputMode !== updatedSettings.outputMode ||
       oldSettings.youtube.rtmpUrl !== updatedSettings.youtube.rtmpUrl ||
       oldSettings.youtube.streamKey !== updatedSettings.youtube.streamKey ||
@@ -505,101 +541,37 @@ app.post("/api/stream/stop", requireRole(["owner", "admin"]), (_req: Request, re
 });
 
 /** Public proxy endpoint to bypass HTTPS Mixed Content blocking in browsers/FiveM. */
-app.get("/api/stream/proxy", (req: Request, res: Response) => {
+const streamProxyHandler = (req: Request, res: Response) => {
   const settings = settingsManager.getSettings();
-  if (settings.outputMode !== "icecast") {
-    res.status(400).json({ error: "El proxy de transmisión solo está disponible en modo Icecast." });
-    return;
-  }
+  const streamPort = settings.streamPort;
+  const streamUrl = `http://127.0.0.1:${streamPort}/radio.mp3`;
 
-  const serverUrl = settings.icecast.serverUrl;
-  if (!serverUrl) {
-    res.status(404).json({ error: "No hay un servidor de transmisión configurado." });
-    return;
-  }
-
-  let httpUrl = serverUrl;
-  if (serverUrl.startsWith("icecast://")) {
-    httpUrl = serverUrl.replace(/^icecast:\/\/(?:[^:]+):[^@]+@/, "http://");
-  } else if (serverUrl.startsWith("shoutcast://")) {
-    httpUrl = serverUrl.replace(/^shoutcast:\/\/(?:[^:]+):[^@]+@/, "http://");
-    if (!httpUrl.includes("/", 7)) {
-      httpUrl = httpUrl + "/stream";
-    }
-  }
-
-  const format = settings.icecast.format || "mp3";
-  const contentType = format === "aac" ? "audio/aac" : "audio/mpeg";
-
-  console.log(`[Stream Proxy] Setting up dynamic keep-alive proxy for: ${httpUrl}`);
-
-  // Write headers immediately so the client (FiveM / browser) gets connected
   res.writeHead(200, {
-    "Content-Type": contentType,
+    "Content-Type": "audio/mpeg",
+    "Connection": "keep-alive",
+    "Transfer-Encoding": "chunked",
     "Cache-Control": "no-cache, no-store, must-revalidate",
     "Pragma": "no-cache",
     "Expires": "0",
-    "Connection": "keep-alive"
+    "Access-Control-Allow-Origin": "*"
   });
 
-  let activeRequest: http.ClientRequest | null = null;
-  let isClosed = false;
+  const proxyRequest = http.get(streamUrl, (proxyResponse) => {
+    proxyResponse.pipe(res);
+  });
 
-  const connectToSource = () => {
-    if (isClosed) return;
-
-    const client = httpUrl.startsWith("https") ? https : http;
-
-    const streamRequest = client.get(httpUrl, (streamResponse) => {
-      if (isClosed) {
-        streamRequest.destroy();
-        return;
-      }
-
-      console.log(`[Stream Proxy] Connected to source stream successfully`);
-
-      // Pipe to client but do NOT end the response stream when the source ends
-      streamResponse.pipe(res, { end: false });
-
-      streamResponse.on("end", () => {
-        console.log(`[Stream Proxy] Source connection ended. Reconnecting in 500ms...`);
-        streamRequest.destroy();
-        if (!isClosed) {
-          setTimeout(connectToSource, 500);
-        }
-      });
-
-      streamResponse.on("error", (err) => {
-        console.error(`[Stream Proxy] Source stream error: ${err.message}. Reconnecting in 500ms...`);
-        streamRequest.destroy();
-        if (!isClosed) {
-          setTimeout(connectToSource, 500);
-        }
-      });
-    });
-
-    activeRequest = streamRequest;
-
-    streamRequest.on("error", (err) => {
-      console.error(`[Stream Proxy] Request connection error: ${err.message}. Reconnecting in 1000ms...`);
-      streamRequest.destroy();
-      if (!isClosed) {
-        setTimeout(connectToSource, 1000);
-      }
-    });
-  };
-
-  connectToSource();
-
-  req.on("close", () => {
-    console.log("[Stream Proxy] Client connection closed.");
-    isClosed = true;
-    if (activeRequest) {
-      activeRequest.destroy();
-    }
+  proxyRequest.on("error", (err) => {
+    console.error(`[Express Proxy] Request error: ${err.message}`);
     res.end();
   });
-});
+
+  req.on("close", () => {
+    proxyRequest.destroy();
+  });
+};
+
+app.get("/radio.mp3", streamProxyHandler);
+app.get("/api/stream/proxy", streamProxyHandler);
 
 // ─── Bootstrap ───────────────────────────────────────────────
 

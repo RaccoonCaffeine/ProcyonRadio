@@ -105,6 +105,11 @@ export const elements = {
   settingsIceBitrate: document.getElementById('settings-ice-bitrate'),
 
   settingsPort: document.getElementById('settings-port'),
+  settingsStreamPort: document.getElementById('settings-stream-port'),
+  settingsUseCloudflare: document.getElementById('settings-use-cloudflare'),
+  settingsLocalBitrate: document.getElementById('settings-local-bitrate'),
+  settingsLocalBitrateGroup: document.getElementById('settings-local-bitrate-group'),
+  settingsStreamServerEnabled: document.getElementById('settings-stream-server-enabled'),
   settingsGuestAdd: document.getElementById('settings-guest-add'),
   settingsPotUrl: document.getElementById('settings-pot-url'),
 
@@ -460,7 +465,7 @@ export function updateUI() {
   // 2. Now Playing Track details
   if (state.currentTrack) {
     elements.trackTitle.textContent = state.currentTrack.title;
-    elements.trackSubtitle.innerHTML = `${state.currentTrack.artist} <span class="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 font-mono">(ID: ${state.currentTrack.youtubeId})</span>`;
+    elements.trackSubtitle.textContent = state.currentTrack.artist;
     elements.trackThumbnail.src = getYouTubeThumbnail(state.currentTrack.youtubeId);
     
     if (state.currentTrack.duration === 0) {
@@ -570,14 +575,19 @@ export function updateUI() {
 
         return `
           <li class="queue-item ${isError ? 'border-red-500/35 bg-red-500/5 dark:bg-red-500/10' : ''}" data-uuid="${item.uuid}" draggable="${!isGuest && !isError}">
-            <div class="item-left" style="pointer-events: none;">
-              <span class="item-index">${index + 1}</span>
-              <div class="item-thumb-wrapper">
+            <div class="item-left flex items-center">
+              <span class="item-index pointer-events-none">${index + 1}</span>
+              ${!isGuest && !isError ? `
+                <button class="btn-play-item text-slate-400 hover:text-emerald-500 p-1 transition-all mr-1 shrink-0" data-action="play-track" data-uuid="${item.uuid}" title="Reproducir ahora">
+                  <i class="fa-solid fa-play text-xs sm:text-sm"></i>
+                </button>
+              ` : ''}
+              <div class="item-thumb-wrapper pointer-events-none">
                 <img class="item-thumb" src="${getYouTubeThumbnail(item.youtubeId)}" alt="Thumb">
               </div>
-              <div class="item-details">
+              <div class="item-details pointer-events-none">
                 <p class="item-title ${isError ? 'text-red-500 dark:text-red-400 font-semibold' : ''}" title="${title}">${title}</p>
-                <p class="item-id">${artist} • ID: ${item.youtubeId}</p>
+                <p class="item-id">${artist}</p>
               </div>
             </div>
             ${!isGuest ? `

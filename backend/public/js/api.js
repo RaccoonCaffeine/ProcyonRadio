@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { showToast } from './ui.js';
 
 /**
  * Standardized wrapper for API fetch requests.
@@ -49,6 +50,13 @@ export async function fetchStatus() {
     state.currentTrack = data.currentTrack;
     state.queue = data.queue;
     state.hasHistory = data.hasHistory;
+
+    // Show toast for failed resolutions
+    if (data.failedNotifications && data.failedNotifications.length > 0) {
+      data.failedNotifications.forEach(notif => {
+        showToast(`No se pudo cargar: ${notif.title}`, 'error');
+      });
+    }
   }
   return data;
 }
@@ -66,6 +74,13 @@ export async function addTrack(url) {
 /** Performs YouTube track search. */
 export async function searchTracks(query) {
   return await apiCall(`/api/search?q=${encodeURIComponent(query)}`);
+}
+
+/** Plays a specific song from the queue immediately by its UUID. */
+export async function playTrack(uuid) {
+  const data = await apiCall(`/api/queue/play/${uuid}`, 'POST');
+  await fetchStatus();
+  return data;
 }
 
 /** Skips the currently playing track. */

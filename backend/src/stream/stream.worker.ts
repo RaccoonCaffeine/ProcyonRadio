@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { queueManager } from "../queue/queue.manager.js";
 import { getTrackMetadata } from "../utils/youtube.js";
 import { settingsManager } from "../settings/settings.manager.js";
+import { streamServer } from "./stream.server.js";
 
 // ─── Path Resolvers for Portability ──────────────────────────
 
@@ -29,22 +30,16 @@ function resolveDataPath(fileName: string): string {
     return parentPath;
   }
 
-  // 4. If still not found, return cwd path (will be created if needed)
+  // 4. If still not found, return cwd path
   return cwdPath;
 }
 
-const getBackgroundImage = () => resolveDataPath("fondo.jpg");
 const getFallbackAudio = () => resolveDataPath("fallback.mp3");
 
 function getFFmpegCommand(): string {
   if (process.platform === "win32") {
-    // En pkg, process.execPath apunta al ejecutable de Node dentro del snapshot
-    // Necesitamos buscar ffmpeg.exe en el mismo directorio del .exe principal
-    
-    // 1. Obtener el directorio del ejecutable pkg (ProcyonRadio.exe)
     let execDir = process.execPath;
     if (execDir.includes("node.exe")) {
-      // Si está en el snapshot, buscar padre
       execDir = path.dirname(path.dirname(execDir));
     } else {
       execDir = path.dirname(execDir);
@@ -52,80 +47,189 @@ function getFFmpegCommand(): string {
     
     const exePath1 = path.join(execDir, "ffmpeg.exe");
     if (fs.existsSync(exePath1)) {
-      console.log(`[ffmpeg] Found at: ${exePath1}`);
       return exePath1;
     }
     
-    // 2. Try in current working directory
     const cwdExe = path.join(process.cwd(), "ffmpeg.exe");
     if (fs.existsSync(cwdExe)) {
-      console.log(`[ffmpeg] Found at: ${cwdExe}`);
       return cwdExe;
     }
     
-    // 3. Try one level up from cwd
     const parentCwd = path.join(process.cwd(), "..", "ffmpeg.exe");
     if (fs.existsSync(parentCwd)) {
-      console.log(`[ffmpeg] Found at: ${parentCwd}`);
       return parentCwd;
     }
     
-    // Fall back to system PATH
-    console.log("[ffmpeg] Not found locally, using system PATH (ffmpeg must be installed)");
     return "ffmpeg";
   }
   return "ffmpeg";
-}
-
-function resolveFontPath(bold = true): string {
-  const fontName = bold ? "DejaVuSans-Bold.ttf" : "DejaVuSans.ttf";
-  const localFont = path.join(process.cwd(), "data", fontName);
-  
-  if (fs.existsSync(localFont)) {
-    return localFont.replace(/\\/g, "/").replace(/:/g, "\\:");
-  }
-
-  if (process.platform === "win32") {
-    const winFont = bold ? "C:/Windows/Fonts/arialbd.ttf" : "C:/Windows/Fonts/arial.ttf";
-    if (fs.existsSync(winFont)) {
-      return winFont.replace(/:/g, "\\:");
-    }
-  }
-
-  return bold 
-    ? "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    : "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
 }
 
 function sanitizeForFFmpeg(text: string): string {
   return text.replace(/[':\\\\]/g, " ").trim();
 }
 
+// ─── PCM Mixer for Crossfading ───────────────────────────────
+
+class PcmMixer {
+  private bufferA: Buffer = Buffer.alloc(0);
+  private bufferB: Buffer = Buffer.alloc(0);
+  private fadeBytesTotal = 0;
+  private fadeBytesMixed = 0;
+  private onData: (mixed: Buffer) => void;
+  private onComplete: () => void;
+
+  constructor(fadeDuration: number, onData: (mixed: Buffer) => void, onComplete: () => void) {
+    this.fadeBytesTotal = Math.max(1, fadeDuration * 176400); // 44100Hz * 2 channels * 2 bytes = 176400 bytes/sec
+    this.onData = onData;
+    this.onComplete = onComplete;
+  }
+
+  public writeA(chunk: Buffer) {
+    this.bufferA = Buffer.concat([this.bufferA, chunk]);
+    this.process();
+  }
+
+  public writeB(chunk: Buffer) {
+    this.bufferB = Buffer.concat([this.bufferB, chunk]);
+    this.process();
+  }
+
+  private process() {
+    const available = Math.min(this.bufferA.length, this.bufferB.length);
+    if (available === 0) return;
+
+    const remainingFade = this.fadeBytesTotal - this.fadeBytesMixed;
+    const toMix = Math.min(available, remainingFade);
+
+    if (toMix > 0) {
+      const chunkA = this.bufferA.subarray(0, toMix);
+      const chunkB = this.bufferB.subarray(0, toMix);
+      const mixed = Buffer.alloc(toMix);
+
+      for (let i = 0; i < toMix; i += 2) {
+        if (i + 1 >= toMix) break;
+        const valA = chunkA.readInt16LE(i);
+        const valB = chunkB.readInt16LE(i);
+
+        // Linear interpolation factor
+        const factorB = (this.fadeBytesMixed + i) / this.fadeBytesTotal;
+        const factorA = 1 - factorB;
+
+        const mixedVal = Math.round(valA * factorA + valB * factorB);
+        const clamped = Math.max(-32768, Math.min(32767, mixedVal));
+        mixed.writeInt16LE(clamped, i);
+      }
+
+      this.onData(mixed);
+      this.fadeBytesMixed += toMix;
+
+      this.bufferA = this.bufferA.subarray(toMix);
+      this.bufferB = this.bufferB.subarray(toMix);
+    }
+
+    if (this.fadeBytesMixed >= this.fadeBytesTotal) {
+      this.onComplete();
+    }
+  }
+
+  public getRemainingB(): Buffer {
+    return this.bufferB;
+  }
+}
+
+// ─── FFmpeg 2 Helper: Spawns a Decoder Process ─────────────────
+
+function spawnDecoder(
+  input: string,
+  isLoop: boolean,
+  seekSeconds: number,
+  duration: number,
+  volumeFactor?: string
+): ChildProcess {
+  const ffmpegCmd = getFFmpegCommand();
+  const args: string[] = [];
+
+  if (isLoop) {
+    args.push("-stream_loop", "-1");
+  }
+
+  if (!isLoop && seekSeconds > 0) {
+    args.push("-ss", seekSeconds.toString());
+  }
+
+  if (!isLoop && input.startsWith("http")) {
+    const isHLS = input.includes(".m3u8");
+    if (isHLS) {
+      args.push("-protocol_whitelist", "file,http,https,tcp,tls,crypto");
+    } else {
+      args.push(
+        "-reconnect", "1",
+        "-reconnect_at_eof", "1",
+        "-reconnect_streamed", "1",
+        "-reconnect_delay_max", "5"
+      );
+    }
+  }
+
+  // Always read input at real-time speed to prevent backlog buffering in Node/OS pipes
+  args.push("-re");
+  args.push("-i", input);
+
+  args.push("-f", "s16le", "-ac", "2", "-ar", "44100");
+
+  if (volumeFactor) {
+    args.push("-af", `volume=${volumeFactor}`);
+  }
+
+  if (!isLoop && duration > 0) {
+    args.push("-to", duration.toString());
+  }
+
+  args.push("pipe:1");
+
+  console.log(`[ffmpeg decoder] Spawning: ${ffmpegCmd} ${args.join(" ")}`);
+  return spawn(ffmpegCmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+}
+
 // ─── StreamWorker ────────────────────────────────────────────
+
 class StreamWorker {
   public isRunning = false;
-  private encoderProcess: ChildProcess | null = null;
-  private decoderProcess: ChildProcess | null = null;
-
   public isFallback = false;
-  private lastEncoderLaunchTime = 0;
-
-  public currentTrack: {
-    youtubeId: string;
-    title: string;
-    artist: string;
-    duration: number; 
-    pausedPosition: number; 
-    startTime: number | null; 
-    audioUrl?: string; 
-  } | null = null;
-
   public isPaused = false;
   public isSeeking = false;
   public fadeDuration = 3;
   public fallbackVolume = 5;
 
-  /** Writes the current track information to text files to dynamically reload drawtext overlays. */
+  public currentTrack: {
+    youtubeId: string;
+    title: string;
+    artist: string;
+    duration: number;
+    pausedPosition: number;
+    startTime: number | null;
+    audioUrl?: string;
+  } | null = null;
+
+  private encoderProcess: ChildProcess | null = null;
+  private decoderProcess: ChildProcess | null = null;
+  private preloadProcess: ChildProcess | null = null;
+
+  // Preloaded data cache (FFmpeg 3)
+  private nextTrackBuffer: Buffer = Buffer.alloc(0);
+  private nextTrackId = "";
+  
+  // Anti-spam timers
+  private preloadTimer: NodeJS.Timeout | null = null;
+  private currentTrackPlayTime = 0;
+  private currentTrackInterval: NodeJS.Timeout | null = null;
+  private activeResolver: (() => void) | null = null;
+
+  // Keep-alive silence generator properties to prevent stream starvation
+  private keepAliveInterval: NodeJS.Timeout | null = null;
+  private lastWriteTime = 0;
+
   private writeOverlayText(title: string, artist: string): void {
     try {
       const titlePath = path.join(process.cwd(), "data", "current_title.txt");
@@ -143,136 +247,45 @@ class StreamWorker {
     }
   }
 
+  /**
+   * Spawns the main mixer and encoder process (FFmpeg 1).
+   */
   private launchEncoder(): Promise<void> {
     if (this.encoderProcess) return Promise.resolve();
-    this.lastEncoderLaunchTime = Date.now();
 
     return new Promise<void>((resolve, reject) => {
       const settings = settingsManager.getSettings();
-      const outputMode = settings.outputMode;
-
-      // Validate required settings to prevent launching broken ffmpeg commands
-      if (outputMode === "youtube") {
-        const streamKey = settings.youtube.streamKey ? settings.youtube.streamKey.trim() : "";
-        if (!streamKey) {
-          console.warn("⚠️ [StreamWorker] La clave de transmisión de YouTube (Stream Key) está vacía. Configure su clave de transmisión en el panel de Ajustes.");
-          this.encoderProcess = null;
-          resolve();
-          return;
-        }
-      } else {
-        const serverUrl = settings.icecast.serverUrl ? settings.icecast.serverUrl.trim() : "";
-        if (!serverUrl) {
-          console.warn("⚠️ [StreamWorker] La URL del servidor Icecast está vacía. Configure su Server URL en el panel de Ajustes.");
-          this.encoderProcess = null;
-          resolve();
-          return;
-        }
-      }
-
+      const useCloudflare = settings.useCloudflare;
+      const bitrate = useCloudflare ? "128k" : (settings.localBitrate || "320k");
       const ffmpegCmd = getFFmpegCommand();
-      const args: string[] = [];
 
-      // Ensure text files exist
-      this.writeOverlayText("Música en Espera", "Iniciando...");
-
-      const titlePath = path.join(process.cwd(), "data", "current_title.txt");
-      const artistPath = path.join(process.cwd(), "data", "current_artist.txt");
-
-      if (outputMode === "youtube") {
-        // ── YOUTUBE MODE (Persistent Video + Audio RTMP) ─────────────
-        const rtmpUrl = `${settings.youtube.rtmpUrl}/${settings.youtube.streamKey}`;
-        const backgroundImage = getBackgroundImage();
-
-        args.push(
-          "-re",
-          "-loop", "1",
-          "-i", backgroundImage,
-          "-f", "s16le",
-          "-ar", "44100",
-          "-ac", "2",
-          "-i", "pipe:0" // Read PCM raw audio from stdin
-        );
-
-        const titleFont = resolveFontPath(true);
-        const artistFont = resolveFontPath(false);
-
-        // Configure drawtext with textfile and reload=1 for dynamic updates
-        const drawTitle = `drawtext=fontfile='${titleFont}':textfile='${titlePath.replace(/\\/g, "/").replace(/:/g, "\\:")}':reload=1:fontsize=13:fontcolor=white:x=w-tw-20:y=h-th-35`;
-        const drawArtist = `drawtext=fontfile='${artistFont}':textfile='${artistPath.replace(/\\/g, "/").replace(/:/g, "\\:")}':reload=1:fontsize=9:fontcolor=gray:x=w-tw-20:y=h-th-15`;
-        const videoFilter = `scale=640:360,${drawTitle},${drawArtist}`;
-
-        args.push(
-          "-vf", videoFilter,
-          "-c:v", "libx264",
-          "-preset", "veryfast",
-          "-b:v", "600k",
-          "-maxrate", "600k",
-          "-bufsize", "1200k",
-          "-pix_fmt", "yuv420p",
-          "-g", "60",
-          "-c:a", "aac",
-          "-b:a", "128k",
-          "-ar", "44100",
-          "-f", "flv",
-          rtmpUrl
-        );
-      } else {
-        // ── ICECAST MODE (Persistent Audio Only) ─────────────────────
-        const serverUrl = settings.icecast.serverUrl;
-        const format = settings.icecast.format;
-        const bitrate = settings.icecast.bitrate;
-
-        args.push(
-          "-re",
-          "-f", "s16le",
-          "-ar", "44100",
-          "-ac", "2",
-          "-i", "pipe:0"
-        );
-
-        if (format === "mp3") {
-          args.push(
-            "-c:a", "libmp3lame",
-            "-b:a", bitrate,
-            "-ar", "44100",
-            "-content_type", "audio/mpeg",
-            "-f", "mp3"
-          );
-        } else {
-          args.push(
-            "-c:a", "aac",
-            "-b:a", bitrate,
-            "-ar", "44100",
-            "-content_type", "audio/aac",
-            "-f", "adts"
-          );
-        }
-
-        let finalUrl = serverUrl;
-        if (serverUrl.startsWith("shoutcast://")) {
-          finalUrl = serverUrl.replace("shoutcast://", "icecast://");
-          const urlObj = finalUrl.split("@");
-          if (urlObj.length > 1) {
-            const hostPortPart = urlObj[urlObj.length - 1];
-            if (hostPortPart && !hostPortPart.includes("/")) {
-              finalUrl = finalUrl + "/stream";
-            }
-          }
-          args.push("-legacy_icecast", "1");
-        }
-
-        args.push(finalUrl);
-      }
+      const args = [
+        "-f", "s16le",
+        "-ar", "44100",
+        "-ac", "2",
+        "-re",
+        "-i", "pipe:0",
+        "-af", "loudnorm", // Normalization
+        "-c:a", "libmp3lame",
+        "-b:a", bitrate,
+        "-ar", "44100",
+        "-f", "mp3",
+        "pipe:1"
+      ];
 
       console.log(`[ffmpeg encoder] Spawning: ${ffmpegCmd} ${args.join(" ")}`);
 
       this.encoderProcess = spawn(ffmpegCmd, args, {
-        stdio: ["pipe", "pipe", "pipe"],
+        stdio: ["pipe", "pipe", "pipe"]
       });
 
       this.encoderProcess.stdin?.on("error", (err: any) => {
         console.warn(`[ffmpeg encoder stdin] Socket error: ${err.message}`);
+      });
+
+      // Stream stdout of the encoder to the local streaming HTTP server
+      this.encoderProcess.stdout?.on("data", (chunk: Buffer) => {
+        streamServer.broadcast(chunk);
       });
 
       this.encoderProcess.stderr?.on("data", (data: Buffer) => {
@@ -283,129 +296,199 @@ class StreamWorker {
       });
 
       this.encoderProcess.on("close", (code, signal) => {
-        if (signal) {
-          console.log(`[ffmpeg encoder] Terminado deliberadamente por señal: ${signal}`);
-        } else {
-          console.log(`[ffmpeg encoder] Finalizado con código de salida: ${code}`);
-        }
+        console.log(`[ffmpeg encoder] Closed. Code: ${code}, Signal: ${signal}`);
         this.encoderProcess = null;
-        resolve();
+        this.stopKeepAlive();
       });
 
       this.encoderProcess.on("error", (err) => {
-        console.error("[ffmpeg encoder] Spawn error:", err.message);
+        console.error("[ffmpeg encoder] error:", err.message);
         this.encoderProcess = null;
+        this.stopKeepAlive();
         reject(err);
       });
+
+      this.lastWriteTime = Date.now();
+      this.startKeepAlive();
+      resolve();
     });
   }
 
-  /** Spawns a lightweight decoder for a single track and pipes raw PCM output to the encoder. */
-  private runDecoder(
-    audioInput: string,
-    isFallback: boolean,
-    seekSeconds = 0,
-    duration = 0
-  ): Promise<void> {
+  private writeToEncoder(chunk: Buffer) {
+    this.lastWriteTime = Date.now();
+    if (this.encoderProcess && this.encoderProcess.stdin && this.encoderProcess.stdin.writable) {
+      this.encoderProcess.stdin.write(chunk);
+    }
+  }
+
+  private startKeepAlive() {
+    this.stopKeepAlive();
+    this.keepAliveInterval = setInterval(() => {
+      if (!this.encoderProcess || !this.encoderProcess.stdin || !this.encoderProcess.stdin.writable) {
+        return;
+      }
+      
+      const now = Date.now();
+      const elapsed = now - this.lastWriteTime;
+      
+      // If no data has been written for more than 100ms, feed silence bytes to keep stream alive
+      if (elapsed >= 100) {
+        // 100ms of PCM = 17640 bytes (44100Hz * 2 channels * 2 bytes * 0.1s)
+        const silenceBuffer = Buffer.alloc(17640);
+        this.encoderProcess.stdin.write(silenceBuffer);
+        this.lastWriteTime = now;
+      }
+    }, 40);
+  }
+
+  private stopKeepAlive() {
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
+    }
+  }
+
+  private async playTrackSource(url: string, seekSeconds: number, duration: number): Promise<void> {
     return new Promise<void>((resolve) => {
-      const ffmpegCmd = getFFmpegCommand();
-      const args: string[] = [];
+      this.activeResolver = resolve;
+      this.currentTrackPlayTime = seekSeconds;
+      
+      this.startPreloadCheck();
 
-      if (isFallback) {
-        args.push("-stream_loop", "-1");
+      const hasPreloaded = false; // Disabled to prevent OS pipe buffering delays
+      let decoder: ChildProcess;
+
+      if (hasPreloaded) {
+        console.log(`[StreamWorker] Using preloaded buffer for track ${this.nextTrackId}`);
+        const buffer = this.nextTrackBuffer;
+        
+        this.nextTrackBuffer = Buffer.alloc(0);
+        this.nextTrackId = "";
+
+        // Write the preloaded buffer to the encoder
+        this.writeToEncoder(buffer);
+
+        // Spawn decoder seeked to 15 seconds
+        decoder = spawnDecoder(url, false, 15, duration);
+        this.decoderProcess = decoder;
+      } else {
+        // Normal decoding from seekSeconds
+        decoder = spawnDecoder(url, false, seekSeconds, duration);
+        this.decoderProcess = decoder;
       }
 
-      if (!isFallback && seekSeconds > 0) {
-        args.push("-ss", seekSeconds.toString());
-      }
-
-      if (!isFallback && audioInput.startsWith("http")) {
-        const isHLS = audioInput.includes(".m3u8");
-        if (isHLS) {
-          // HLS playlists manage segment fetching internally;
-          // reconnect flags interfere with normal segment transitions.
-          args.push(
-            "-protocol_whitelist", "file,http,https,tcp,tls,crypto"
-          );
-        } else {
-          args.push(
-            "-reconnect", "1",
-            "-reconnect_at_eof", "1",
-            "-reconnect_streamed", "1",
-            "-reconnect_delay_max", "5"
-          );
+      const cleanup = () => {
+        decoder.stdout?.removeAllListeners("data");
+        decoder.stderr?.removeAllListeners("data");
+        decoder.removeAllListeners("close");
+        decoder.removeAllListeners("error");
+        if (this.decoderProcess === decoder) {
+          this.decoderProcess = null;
         }
-      }
+        this.clearPreloadCheck();
+      };
 
-      args.push(
-        "-i", audioInput,
-        "-f", "s16le",
-        "-ac", "2",
-        "-ar", "44100"
-      );
-
-      // Apply audio crossfade duration if configured
-      if (!isFallback && duration > 0 && this.fadeDuration > 0) {
-        const fade = Math.min(this.fadeDuration, duration / 2);
-        if (fade > 0) {
-          args.push("-af", `afade=t=in:ss=0:d=${fade.toFixed(1)},afade=t=out:st=${(duration - fade).toFixed(1)}:d=${fade.toFixed(1)}`);
-        }
-      }
-
-      // Apply dynamic volume reduction for fallback audio
-      if (isFallback) {
-        const volumeFactor = (this.fallbackVolume / 100).toFixed(2);
-        args.push("-af", `volume=${volumeFactor}`);
-      }
-
-      if (!isFallback && duration > 0) {
-        args.push("-to", duration.toString());
-      }
-
-      // Output raw PCM on stdout
-      args.push("pipe:1");
-
-      console.log(`[ffmpeg decoder] Spawning: ${ffmpegCmd} ${args.join(" ")}`);
-
-      this.decoderProcess = spawn(ffmpegCmd, args, {
-        stdio: ["ignore", "pipe", "pipe"],
+      decoder.stdout?.on("data", (chunk: Buffer) => {
+        this.writeToEncoder(chunk);
       });
 
-      // Stream piping directly to the active encoder stdin
-      if (this.encoderProcess && this.encoderProcess.stdin) {
-        this.decoderProcess.stdout?.on("error", (err: any) => {
-          console.warn(`[ffmpeg decoder stdout] Socket error: ${err.message}`);
-        });
-        this.decoderProcess.stdout?.pipe(this.encoderProcess.stdin, { end: false });
-      }
-
-      this.decoderProcess.stderr?.on("data", (data: Buffer) => {
+      decoder.stderr?.on("data", (data: Buffer) => {
         const line = data.toString().trim();
         if (line.toLowerCase().includes("error")) {
           console.error(`[ffmpeg decoder stderr] ${line}`);
         }
       });
 
-      this.decoderProcess.on("close", (code, signal) => {
-        if (signal) {
-          console.log(`[ffmpeg decoder] Terminado deliberadamente por señal (interrupción de reproducción): ${signal}`);
-        } else {
-          console.log(`[ffmpeg decoder] Finalizado con código de salida: ${code}`);
-        }
-        this.decoderProcess = null;
+      decoder.on("close", () => {
+        cleanup();
+        this.activeResolver = null;
         resolve();
       });
 
-      this.decoderProcess.on("error", (err) => {
-        console.error("[ffmpeg decoder] Spawn error:", err.message);
-        this.decoderProcess = null;
+      decoder.on("error", (err) => {
+        console.error("[ffmpeg decoder] error:", err.message);
+        cleanup();
+        this.activeResolver = null;
         resolve();
       });
     });
   }
 
-  /** Main stream worker execution loop. */
-  async start(): Promise<void> {
+  private runDecoderLoop(input: string, isLoop: boolean): Promise<void> {
+    return new Promise<void>((resolve) => {
+      this.activeResolver = resolve;
+      
+      const volumeFactor = (this.fallbackVolume / 100).toFixed(2);
+      const decoder = spawnDecoder(input, isLoop, 0, 0, volumeFactor);
+      this.decoderProcess = decoder;
+
+      const cleanup = () => {
+        decoder.stdout?.removeAllListeners("data");
+        decoder.stderr?.removeAllListeners("data");
+        decoder.removeAllListeners("close");
+        decoder.removeAllListeners("error");
+        if (this.decoderProcess === decoder) {
+          this.decoderProcess = null;
+        }
+      };
+
+      decoder.stdout?.on("data", (chunk: Buffer) => {
+        this.writeToEncoder(chunk);
+      });
+
+      decoder.on("close", () => {
+        cleanup();
+        this.activeResolver = null;
+        resolve();
+      });
+
+      decoder.on("error", (err) => {
+        console.error("[ffmpeg decoder loop] error:", err.message);
+        cleanup();
+        this.activeResolver = null;
+        resolve();
+      });
+    });
+  }
+
+  // ─── Preloader Logic (FFmpeg 3) ───────────────────────────────
+
+  private startPreloadCheck() {
+    this.clearPreloadCheck();
+    
+    this.currentTrackInterval = setInterval(() => {
+      if (this.isPaused || !this.currentTrack) return;
+      this.currentTrackPlayTime += 1;
+      
+      if (this.currentTrackPlayTime >= 15) {
+        this.clearPreloadCheck(); // Only trigger once per song
+        
+        const queue = queueManager.getQueue();
+        if (queue.length > 0) {
+          const nextTrack = queue[0];
+          if (nextTrack && this.nextTrackId !== nextTrack.youtubeId) {
+            this.preloadNextTrack(nextTrack.youtubeId);
+          }
+        }
+      }
+    }, 1000);
+  }
+
+  private clearPreloadCheck() {
+    if (this.currentTrackInterval) {
+      clearInterval(this.currentTrackInterval);
+      this.currentTrackInterval = null;
+    }
+  }
+
+  private async preloadNextTrack(youtubeId: string) {
+    // Completamente deshabilitado para evitar latencia y buffers
+    return;
+  }
+
+  // ─── Lifecycle & Playback Controls ───────────────────────────
+
+  public async start(): Promise<void> {
     if (this.isRunning) {
       console.log("⚠️ StreamWorker already running");
       return;
@@ -413,23 +496,21 @@ class StreamWorker {
     this.isRunning = true;
     console.log("🎬 StreamWorker: loop started");
 
-    // Launch encoder
-    this.launchEncoder().catch((err) => {
-      console.error("❌ Failed to start ffmpeg encoder:", err);
-      this.isRunning = false;
-    });
+    const settings = settingsManager.getSettings();
+    if (settings.streamServerEnabled) {
+      await streamServer.start(settings.streamPort);
+    }
 
-    // Brief delay to allow encoder process to spawn
+    await this.launchEncoder();
+
+    // Brief delay to let the encoder initialize
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     while (this.isRunning) {
       if (!this.encoderProcess) {
-        const elapsed = Date.now() - this.lastEncoderLaunchTime;
-        const delay = Math.max(5000 - elapsed, 1000); // Wait at least 5 seconds between launches
-        console.log(`🔄 Encoder process not active. Restarting encoder in ${Math.round(delay / 1000)}s...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        if (!this.isRunning) break;
+        console.log("🔄 Encoder process not active. Restarting encoder...");
         await this.launchEncoder();
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         continue;
       }
 
@@ -439,111 +520,64 @@ class StreamWorker {
         this.isFallback = true;
         console.log("⏸️ Playback paused — streaming fallback audio");
         this.writeOverlayText("Música en Espera", "Transmisión Pausada");
-        await this.runDecoder(fallbackAudio, true);
+        await this.runDecoderLoop(fallbackAudio, true);
         continue;
       }
 
       if (this.currentTrack) {
         this.isFallback = false;
-        console.log(`🎵 Playing (resuming): ${this.currentTrack.title} (${this.currentTrack.youtubeId}) at ${this.currentTrack.pausedPosition.toFixed(1)}s`);
+        console.log(`🎵 Playing track: ${this.currentTrack.title}`);
         this.writeOverlayText(this.currentTrack.title, this.currentTrack.artist);
 
         try {
           let audioUrl = this.currentTrack.audioUrl;
           if (!audioUrl) {
             const metadata = await getTrackMetadata(this.currentTrack.youtubeId);
-            if (!this.currentTrack) continue;
             audioUrl = metadata.url;
             this.currentTrack.audioUrl = audioUrl;
             this.currentTrack.title = metadata.title;
             this.currentTrack.artist = metadata.artist;
             this.currentTrack.duration = metadata.duration;
           }
-          
-          if (!this.currentTrack) continue;
+
           this.currentTrack.startTime = Date.now();
           this.writeOverlayText(this.currentTrack.title, this.currentTrack.artist);
 
-          await this.runDecoder(
-            audioUrl!,
-            false,
-            this.currentTrack.pausedPosition,
-            this.currentTrack.duration
-          );
+          await this.playTrackSource(audioUrl, this.currentTrack.pausedPosition, this.currentTrack.duration);
 
-          if (this.isSeeking) {
-            this.isSeeking = false;
-          } else if (!this.isPaused && this.currentTrack && this.currentTrack.startTime !== null) {
+          if (!this.isSeeking && !this.isPaused && this.currentTrack && this.currentTrack.startTime !== null) {
             console.log(`✅ Finished playing: ${this.currentTrack.title}`);
             queueManager.addToHistory(this.currentTrack.youtubeId);
             this.currentTrack = null;
           }
+          this.isSeeking = false;
         } catch (err) {
-          console.error(`❌ Error playing current track ${this.currentTrack?.youtubeId}:`, err);
+          console.error("❌ Error playing current track:", err);
+          if (this.currentTrack) {
+            queueManager.addFailedNotification(
+              this.currentTrack.youtubeId,
+              this.currentTrack.title || "Canción en reproducción"
+            );
+          }
           this.currentTrack = null;
         }
       } else {
         const item = queueManager.next();
-
         if (item) {
-          this.isFallback = false;
-          console.log(`🎵 Dequeued new track: ${item.youtubeId}`);
-          try {
-            if (item.audioUrl && item.duration) {
-              this.currentTrack = {
-                youtubeId: item.youtubeId,
-                title: item.title || "Unknown Title",
-                artist: item.artist || "Unknown Artist",
-                duration: item.duration,
-                pausedPosition: 0,
-                startTime: Date.now(),
-                audioUrl: item.audioUrl
-              };
-            } else {
-              this.currentTrack = {
-                youtubeId: item.youtubeId,
-                title: item.title || "Cargando...",
-                artist: item.artist || "Cargando...",
-                duration: 0,
-                pausedPosition: 0,
-                startTime: Date.now()
-              };
-
-              const metadata = await getTrackMetadata(item.youtubeId);
-              if (!this.currentTrack) continue;
-              this.currentTrack.audioUrl = metadata.url;
-              this.currentTrack.title = metadata.title;
-              this.currentTrack.artist = metadata.artist;
-              this.currentTrack.duration = metadata.duration;
-            }
-
-            if (!this.currentTrack) continue;
-            this.currentTrack.startTime = Date.now();
-            this.writeOverlayText(this.currentTrack.title, this.currentTrack.artist);
-
-            await this.runDecoder(
-              this.currentTrack.audioUrl!,
-              false,
-              0,
-              this.currentTrack.duration
-            );
-
-            if (this.isSeeking) {
-              this.isSeeking = false;
-            } else if (!this.isPaused && this.currentTrack && this.currentTrack.startTime !== null) {
-              console.log(`✅ Finished playing: ${this.currentTrack.title}`);
-              queueManager.addToHistory(this.currentTrack.youtubeId);
-              this.currentTrack = null;
-            }
-          } catch (err) {
-            console.error(`❌ Error playing dequeued track ${item.youtubeId}:`, err);
-            this.currentTrack = null;
-          }
+          this.currentTrack = {
+            youtubeId: item.youtubeId,
+            title: item.title || "Cargando...",
+            artist: item.artist || "Cargando...",
+            duration: item.duration || 0,
+            pausedPosition: 0,
+            startTime: Date.now(),
+            audioUrl: item.audioUrl
+          };
         } else {
           this.isFallback = true;
           console.log("🔁 Queue empty — streaming fallback audio");
           this.writeOverlayText("Música en Espera", "Cola de reproducción vacía");
-          await this.runDecoder(fallbackAudio, true);
+          await this.runDecoderLoop(fallbackAudio, true);
         }
       }
     }
@@ -551,10 +585,9 @@ class StreamWorker {
     console.log("🛑 StreamWorker: loop stopped");
   }
 
-  /** Pre-resolves metadata and stops current fallback decoder so the track starts immediately. */
-  async resolveAndPlay(youtubeId: string): Promise<void> {
+  public async resolveAndPlay(youtubeId: string): Promise<void> {
     try {
-      console.log(`[StreamWorker] Pre-resolving ${youtubeId} while fallback is active...`);
+      console.log(`[StreamWorker] Resolving track ${youtubeId} immediately...`);
       const metadata = await getTrackMetadata(youtubeId);
       
       this.currentTrack = {
@@ -566,18 +599,78 @@ class StreamWorker {
         startTime: Date.now(),
         audioUrl: metadata.url
       };
-      
-      if (this.decoderProcess) {
-        this.decoderProcess.kill("SIGKILL");
-      }
+
+      this.isPaused = false;
+      this.isFallback = false;
+
+      // Kill the current decoder loop (which is fallback or whatever is playing)
+      this.interruptDecoder();
     } catch (err) {
-      console.error(`[StreamWorker] Failed to pre-resolve ${youtubeId}:`, err);
+      console.error("[StreamWorker] Failed to resolve and play track:", err);
+      queueManager.addFailedNotification(youtubeId, "Resolución de reproducción inmediata");
       this.skip();
     }
   }
 
-  /** Pauses the current playing track. */
-  pause(): void {
+  private interruptDecoder(): void {
+    if (this.decoderProcess) {
+      const proc = this.decoderProcess;
+      this.decoderProcess = null;
+      
+      proc.stdout?.removeAllListeners("data");
+      proc.stderr?.removeAllListeners("data");
+      proc.removeAllListeners("close");
+      proc.removeAllListeners("error");
+      
+      try {
+        proc.kill("SIGKILL");
+      } catch (err) {
+        console.warn("[StreamWorker] Failed to kill decoder process:", err);
+      }
+    }
+
+    if (this.activeResolver) {
+      const resolve = this.activeResolver;
+      this.activeResolver = null;
+      resolve();
+    }
+  }
+
+  public playQueueItem(uuid: string): boolean {
+    const item = queueManager.getQueue().find((q) => q.uuid === uuid);
+    if (!item) {
+      return false;
+    }
+
+    // Add current track to history if it exists
+    if (this.currentTrack) {
+      queueManager.addToHistory(this.currentTrack.youtubeId);
+    }
+
+    // Remove from queue
+    queueManager.remove(uuid);
+
+    // Set as current track
+    this.currentTrack = {
+      youtubeId: item.youtubeId,
+      title: item.title || "Cargando...",
+      artist: item.artist || "Cargando...",
+      duration: item.duration || 0,
+      pausedPosition: 0,
+      startTime: Date.now(),
+      audioUrl: item.audioUrl
+    };
+
+    this.isPaused = false;
+    this.isFallback = false;
+
+    // Interrupt current playback
+    this.interruptDecoder();
+
+    return true;
+  }
+
+  public pause(): void {
     if (!this.isRunning || this.isPaused || !this.currentTrack) {
       return;
     }
@@ -591,13 +684,10 @@ class StreamWorker {
     this.isPaused = true;
     console.log(`⏸️  Pausing current track at ${this.currentTrack.pausedPosition.toFixed(1)}s`);
 
-    if (this.decoderProcess) {
-      this.decoderProcess.kill("SIGKILL");
-    }
+    this.interruptDecoder();
   }
 
-  /** Resumes the paused track. */
-  resume(): void {
+  public resume(): void {
     if (!this.isRunning || !this.isPaused || !this.currentTrack) {
       return;
     }
@@ -605,27 +695,120 @@ class StreamWorker {
     this.isPaused = false;
     console.log(`▶️  Resuming track ${this.currentTrack.youtubeId}`);
 
-    if (this.decoderProcess) {
-      this.decoderProcess.kill("SIGKILL");
-    }
+    this.interruptDecoder();
   }
 
-  /** Immediately skips the current track. */
-  skip(ignoreHistory = false): void {
+  public skip(ignoreHistory = false): void {
     console.log("⏭️  Skipping current track");
     if (this.currentTrack && !ignoreHistory) {
       queueManager.addToHistory(this.currentTrack.youtubeId);
     }
     this.isPaused = false;
-    this.currentTrack = null;
 
-    if (this.decoderProcess) {
-      this.decoderProcess.kill("SIGKILL");
+    this.clearPreloadCheck();
+
+    const nextItem = queueManager.getQueue()[0];
+    const hasPreload = false; // Disabled to prevent OS pipe buffering delays
+
+    if (hasPreload && this.decoderProcess && this.fadeDuration > 0) {
+      console.log(`[StreamWorker] Performing crossfade skip to ${nextItem?.youtubeId}...`);
+      
+      const oldDecoder = this.decoderProcess;
+      oldDecoder.stdout?.removeAllListeners("data");
+
+      const item = queueManager.next();
+      if (!item) {
+        this.currentTrack = null;
+        oldDecoder.kill("SIGKILL");
+        if (this.activeResolver) this.activeResolver();
+        return;
+      }
+
+      this.currentTrack = {
+        youtubeId: item.youtubeId,
+        title: item.title || "Cargando...",
+        artist: item.artist || "Cargando...",
+        duration: item.duration || 0,
+        pausedPosition: 0,
+        startTime: Date.now(),
+        audioUrl: item.audioUrl
+      };
+      
+      this.writeOverlayText(this.currentTrack.title, this.currentTrack.artist);
+
+      let isMixed = false;
+      const mixer = new PcmMixer(this.fadeDuration, (mixedChunk) => {
+        this.writeToEncoder(mixedChunk);
+      }, () => {
+        if (isMixed) return;
+        isMixed = true;
+        console.log("[StreamWorker] Crossfade skip complete");
+        
+        oldDecoder.kill("SIGKILL");
+
+        const remaining = mixer.getRemainingB();
+        if (remaining.length > 0) {
+          this.writeToEncoder(remaining);
+        }
+
+        if (this.currentTrack && this.currentTrack.audioUrl) {
+          const newDecoder = spawnDecoder(this.currentTrack.audioUrl, false, 15, this.currentTrack.duration);
+          this.decoderProcess = newDecoder;
+
+          newDecoder.stdout?.on("data", (chunk: Buffer) => {
+            this.writeToEncoder(chunk);
+          });
+
+          newDecoder.on("close", () => {
+            this.decoderProcess = null;
+            if (this.activeResolver) this.activeResolver();
+          });
+        } else {
+          if (this.activeResolver) this.activeResolver();
+        }
+      });
+
+      mixer.writeB(this.nextTrackBuffer);
+      this.nextTrackBuffer = Buffer.alloc(0);
+      this.nextTrackId = "";
+
+      oldDecoder.stdout?.on("data", (chunk: Buffer) => {
+        mixer.writeA(chunk);
+      });
+
+      oldDecoder.on("close", () => {
+        if (!isMixed) {
+          isMixed = true;
+          console.log("[StreamWorker] Old decoder closed during crossfade, completing early");
+          const remaining = mixer.getRemainingB();
+          if (remaining.length > 0) {
+            this.writeToEncoder(remaining);
+          }
+          if (this.currentTrack && this.currentTrack.audioUrl) {
+            const newDecoder = spawnDecoder(this.currentTrack.audioUrl, false, 15, this.currentTrack.duration);
+            this.decoderProcess = newDecoder;
+            newDecoder.stdout?.on("data", (chunk: Buffer) => {
+              this.writeToEncoder(chunk);
+            });
+            newDecoder.on("close", () => {
+              this.decoderProcess = null;
+              if (this.activeResolver) this.activeResolver();
+            });
+          } else {
+            if (this.activeResolver) this.activeResolver();
+          }
+        }
+      });
+    } else {
+      // Normal immediate skip without crossfade
+      this.currentTrack = null;
+      this.nextTrackBuffer = Buffer.alloc(0);
+      this.nextTrackId = "";
+      this.interruptDecoder();
     }
   }
 
-  /** Seeks to a timestamp in the current track. */
-  seek(seconds: number): void {
+  public seek(seconds: number): void {
     if (!this.isRunning || !this.currentTrack) {
       return;
     }
@@ -636,30 +819,34 @@ class StreamWorker {
     this.isSeeking = true;
     this.currentTrack.pausedPosition = targetSeconds;
 
-    if (this.decoderProcess) {
-      this.decoderProcess.kill("SIGKILL");
-    }
+    this.interruptDecoder();
   }
 
-  /** Stops the streaming loop and terminates all FFmpeg processes. */
-  stop(): void {
+  public stop(): void {
     this.isRunning = false;
+    this.clearPreloadCheck();
     
-    if (this.decoderProcess) {
-      this.decoderProcess.kill("SIGKILL");
-      this.decoderProcess = null;
+    this.interruptDecoder();
+    if (this.preloadProcess) {
+      this.preloadProcess.kill("SIGKILL");
+      this.preloadProcess = null;
     }
     if (this.encoderProcess) {
       this.encoderProcess.kill("SIGKILL");
       this.encoderProcess = null;
+      this.stopKeepAlive();
     }
+
+    // Stop native streaming server
+    streamServer.stop();
 
     this.isPaused = false;
     this.currentTrack = null;
+    this.nextTrackBuffer = Buffer.alloc(0);
+    this.nextTrackId = "";
   }
 
-  /** Restarts the encoder process to apply settings changes immediately. */
-  restartEncoder(): void {
+  public restartEncoder(): void {
     console.log("🔄 Settings changed. Restarting encoder...");
     if (this.encoderProcess) {
       this.encoderProcess.kill("SIGKILL");

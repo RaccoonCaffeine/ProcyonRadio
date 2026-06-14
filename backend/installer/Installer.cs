@@ -143,6 +143,27 @@ namespace ProcyonRadioInstaller
             installButton.MouseEnter += (s, e) => installButton.BackColor = Color.FromArgb(99, 102, 241);
             installButton.MouseLeave += (s, e) => installButton.BackColor = Color.FromArgb(79, 70, 229);
 
+            // Logo PictureBox
+            logoBox = new PictureBox();
+            logoBox.Location = new Point(410, 180);
+            logoBox.Size = new Size(80, 80);
+            logoBox.SizeMode = PictureBoxSizeMode.Zoom;
+            try
+            {
+                Assembly assembly = Assembly.GetExecutingAssembly();
+                using (Stream imgStream = assembly.GetManifestResourceStream("logo_highres.png"))
+                {
+                    if (imgStream != null)
+                    {
+                        logoBox.Image = Image.FromStream(imgStream);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Fallback is silent
+            }
+
             // Add controls to form
             this.Controls.Add(headerPanel);
             this.Controls.Add(pathLabel);
@@ -153,6 +174,7 @@ namespace ProcyonRadioInstaller
             this.Controls.Add(statusLabel);
             this.Controls.Add(progressBar);
             this.Controls.Add(installButton);
+            this.Controls.Add(logoBox);
         }
 
         private void BrowseButton_Click(object sender, EventArgs e)
