@@ -106,4 +106,6 @@ Las contribuciones son bienvenidas. Si encuentras un error o deseas proponer una
 
 ## 📄 Licencia
 
-Este proyecto está bajo la Licencia **MIT**. Puedes usarlo, modificarlo y distribuirlo libremente para tus proyectos personales o servidores de FiveM.
+**Todos los derechos reservados.**
+
+Este proyecto es de desarrollo privado y propiedad de RaccoonCaffeine. No esta permitida su distribucion, modificacion o uso sin autorizacion explicita.
