@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { dbService } from "../database/database.service.js";
 
 export type UserRole = "owner" | "admin" | "operator";
 
@@ -19,7 +20,6 @@ export interface Session {
   expiresAt: number;
 }
 
-const USERS_FILE_PATH = path.join(process.cwd(), "data", "users.json");
 const SESSIONS_FILE_PATH = path.join(process.cwd(), "data", "sessions.json");
 const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -32,33 +32,96 @@ class AuthManager {
     this.loadSessions();
   }
 
-  /** Loads users from users.json. */
+  /** Loads users from SQLite users table, with fallback to legacy users.json (local or parent). */
   load(): void {
-    const dataDir = path.dirname(USERS_FILE_PATH);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    const db = dbService.getDb();
+
+    try {
+      // Fetch users joining with roles table
+      const rows = db
+        .prepare(
+          `
+        SELECT u.username, u.password_hash, u.created_at, r.role_name 
+        FROM users u 
+        JOIN roles r ON u.role_id = r.id
+      `,
+        )
+        .all() as {
+        username: string;
+        password_hash: string;
+        created_at: string;
+        role_name: string;
+      }[];
+
+      if (rows.length > 0) {
+        this.users = rows.map((row) => {
+          // password_hash is stored as "salt.hash"
+          const parts = row.password_hash.split(".");
+          const salt = parts[0] || "";
+          const passwordHash = parts[1] || "";
+          return {
+            username: row.username,
+            passwordHash,
+            salt,
+            role: row.role_name as UserRole,
+            createdAt: row.created_at,
+          };
+        });
+        return;
+      }
+    } catch (err) {
+      console.error("⚠️ Error reading users from database:", err);
     }
 
-    if (fs.existsSync(USERS_FILE_PATH)) {
-      try {
-        const fileContent = fs.readFileSync(USERS_FILE_PATH, "utf-8");
-        this.users = JSON.parse(fileContent) as User[];
-      } catch (err) {
-        console.error("⚠️ Error reading users.json, initialized empty user list:", err);
-        this.users = [];
-      }
-    } else {
-      this.users = [];
-      this.save();
+    // If DB is empty, check if we have a legacy users.json
+    let legacyPath = path.join(process.cwd(), "data", "users.json");
+    if (!fs.existsSync(legacyPath)) {
+      legacyPath = path.join(process.cwd(), "..", "data", "users.json");
     }
+
+    if (fs.existsSync(legacyPath)) {
+      try {
+        console.log(
+          `📝 Migrating legacy users.json (${legacyPath}) to SQLite...`,
+        );
+        const fileContent = fs.readFileSync(legacyPath, "utf-8");
+        const parsedUsers = JSON.parse(fileContent) as User[];
+        for (const u of parsedUsers) {
+          this.insertUserToDb(u);
+        }
+        this.users = parsedUsers;
+        this.cleanupLegacyJson(legacyPath);
+        return;
+      } catch (err) {
+        console.error("⚠️ Failed to migrate legacy users.json:", err);
+      }
+    }
+
+    this.users = [];
   }
 
-  /** Saves users to users.json. */
-  private save(): void {
+  /** Helper to insert a user record into SQLite users table. */
+  private insertUserToDb(user: User): void {
     try {
-      fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(this.users, null, 2), "utf-8");
+      const db = dbService.getDb();
+      const roleRow = db
+        .prepare("SELECT id FROM roles WHERE role_name = ?")
+        .get(user.role) as { id: number } | undefined;
+      const roleId = roleRow ? roleRow.id : null;
+      const combinedHash = `${user.salt}.${user.passwordHash}`;
+
+      db.prepare(
+        `
+        INSERT OR REPLACE INTO users (username, display_name, password_hash, role_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+      ).run(user.username, user.username, combinedHash, roleId, user.createdAt);
+      console.log(`💾 User '${user.username}' saved to SQLite.`);
     } catch (err) {
-      console.error("❌ Failed to write users.json:", err);
+      console.error(
+        `❌ Failed to save user '${user.username}' to SQLite:`,
+        err,
+      );
     }
   }
 
@@ -69,7 +132,7 @@ class AuthManager {
         const fileContent = fs.readFileSync(SESSIONS_FILE_PATH, "utf-8");
         const sessionList = JSON.parse(fileContent) as [string, Session][];
         this.sessions = new Map(sessionList);
-        
+
         // Clean expired sessions on load
         const now = Date.now();
         let expiredFound = false;
@@ -83,7 +146,10 @@ class AuthManager {
           this.saveSessions();
         }
       } catch (err) {
-        console.error("⚠️ Error reading sessions.json, initialized empty sessions:", err);
+        console.error(
+          "⚠️ Error reading sessions.json, initialized empty sessions:",
+          err,
+        );
         this.sessions = new Map();
       }
     }
@@ -93,7 +159,11 @@ class AuthManager {
   private saveSessions(): void {
     try {
       const sessionList = Array.from(this.sessions.entries());
-      fs.writeFileSync(SESSIONS_FILE_PATH, JSON.stringify(sessionList, null, 2), "utf-8");
+      fs.writeFileSync(
+        SESSIONS_FILE_PATH,
+        JSON.stringify(sessionList, null, 2),
+        "utf-8",
+      );
     } catch (err) {
       console.error("❌ Failed to write sessions.json:", err);
     }
@@ -131,13 +201,20 @@ class AuthManager {
     };
 
     this.users.push(owner);
-    this.save();
-    console.log(`👑 Owner account '${owner.username}' successfully registered.`);
+    this.insertUserToDb(owner);
+    console.log(
+      `👑 Owner account '${owner.username}' successfully registered.`,
+    );
     return owner;
   }
 
   /** Creates a new user. Enforces RBAC creation rules. */
-  createUser(creatorRole: UserRole, username: string, password: string, role: UserRole): User {
+  createUser(
+    creatorRole: UserRole,
+    username: string,
+    password: string,
+    role: UserRole,
+  ): User {
     if (!username || username.trim().length < 3) {
       throw new Error("Username must be at least 3 characters.");
     }
@@ -176,12 +253,16 @@ class AuthManager {
     };
 
     this.users.push(user);
-    this.save();
+    this.insertUserToDb(user);
     return user;
   }
 
   /** Deletes a user. Enforces RBAC deletion hierarchy. */
-  deleteUser(creatorRole: UserRole, creatorUsername: string, targetUsername: string): void {
+  deleteUser(
+    creatorRole: UserRole,
+    creatorUsername: string,
+    targetUsername: string,
+  ): void {
     const cleanTarget = targetUsername.trim().toLowerCase();
     const target = this.users.find((u) => u.username === cleanTarget);
 
@@ -210,7 +291,18 @@ class AuthManager {
     }
 
     this.users = this.users.filter((u) => u.username !== cleanTarget);
-    this.save();
+
+    // Delete from DB
+    try {
+      const db = dbService.getDb();
+      db.prepare("DELETE FROM users WHERE username = ?").run(cleanTarget);
+      console.log(`🧹 Deleted user '${cleanTarget}' from SQLite.`);
+    } catch (err) {
+      console.error(
+        `❌ Failed to delete user '${cleanTarget}' from SQLite:`,
+        err,
+      );
+    }
 
     // Invalidate sessions for deleted user
     let sessionsChanged = false;
@@ -282,7 +374,28 @@ class AuthManager {
   }
 
   private hashPassword(password: string, salt: string): string {
-    return crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
+    return crypto
+      .pbkdf2Sync(password, salt, 1000, 64, "sha512")
+      .toString("hex");
+  }
+
+  private cleanupLegacyJson(filePath?: string): void {
+    try {
+      const pathsToClean = filePath
+        ? [filePath]
+        : [
+            path.join(process.cwd(), "data", "users.json"),
+            path.join(process.cwd(), "..", "data", "users.json"),
+          ];
+      for (const p of pathsToClean) {
+        if (fs.existsSync(p)) {
+          fs.unlinkSync(p);
+          console.log(`🧹 Legacy users.json removed: ${p}`);
+        }
+      }
+    } catch (err) {
+      console.warn("⚠️ Failed to remove legacy users.json:", err);
+    }
   }
 }
 

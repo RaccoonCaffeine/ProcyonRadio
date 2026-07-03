@@ -2,10 +2,20 @@
 ProcyonRadio-Instalador.exe
 ProcyonRadio-Distribution.zip
 ProcyonRadio-Distribution/
+ProcyonRadio-v*.zip
+
+# Shared Binaries (ignorar todos los .exe grandes)
+*.exe
+cloudflared.exe
+caddy.exe
 ffmpeg.exe
 yt-dlp.exe
+
+# Binaries en directorio backend/
+backend/*.exe
 backend/ffmpeg.exe
 backend/yt-dlp.exe
+backend/caddy.exe
 
 # Node.js Dependencies & Output
 node_modules/
@@ -37,4 +47,14 @@ $RECYCLE.BIN/
 *.suo
 *.user
 *.sln.docstates
+
+# Database files (runtime data, no versionar)
+*.db
+prcyonradio.db
+
+# Audio files (grandes, no versionar)
+*.mp3
 fallback.mp3
+
+# Screenshots sueltos en raiz
+ProcyonRadio UP.png

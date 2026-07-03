@@ -4,7 +4,10 @@ import cors from "cors";
 import path from "node:path";
 import http from "node:http";
 import https from "node:https";
+import net from "node:net";
+import dns from "node:dns";
 
+import { dbService } from "./database/database.service.js";
 import { queueManager } from "./queue/queue.manager.js";
 import { extractYoutubeIds, searchTracks } from "./utils/youtube.js";
 import { streamWorker } from "./stream/stream.worker.js";
@@ -12,6 +15,8 @@ import { streamServer } from "./stream/stream.server.js";
 import { settingsManager } from "./settings/settings.manager.js";
 import { authManager, type UserRole } from "./auth/auth.manager.js";
 import { tunnelManager } from "./utils/tunnel.manager.js";
+import { caddyManager } from "./utils/caddy.manager.js";
+import { ddnsManager } from "./utils/ddns.manager.js";
 import { isActivated, activateLicense, initializeLicenseCheck, updateLicenseOwner } from "./utils/license.js";
 
 // ─── Express app ─────────────────────────────────────────────
@@ -25,20 +30,51 @@ const publicPath = (process as any).pkg
   ? path.join(__dirname, "../public")
   : path.join(process.cwd(), "public");
 
-// ─── License Verification Middleware ───────────────────────────
+// ─── Onboarding & License Verification Middleware ───────────────────────────
 app.use((req: Request, res: Response, next: NextFunction) => {
   const isStaticFile = req.path.includes(".") && !req.path.endsWith(".html");
   const isActivateRoute = req.path === "/activate" || req.path === "/activate.html" || req.path === "/api/activate";
+  const isOnboardingRoute = req.path === "/onboarding" || req.path === "/onboarding.html" || req.path.startsWith("/api/auth/setup") || req.path === "/api/auth/setup-status";
   
-  if (isActivated || isActivateRoute || isStaticFile) {
+  if (isStaticFile) {
     next();
-  } else {
-    res.redirect("/activate");
+    return;
   }
+  
+  if (!isActivated) {
+    if (isActivateRoute) {
+      next();
+    } else {
+      res.redirect("/activate");
+    }
+    return;
+  }
+  
+  // Activated, check if setup is complete
+  if (!authManager.isSetupComplete()) {
+    if (isOnboardingRoute || isActivateRoute) {
+      next();
+    } else {
+      res.redirect("/onboarding");
+    }
+    return;
+  }
+  
+  // If setup is complete and user tries to access onboarding or activate, redirect to home
+  if ((req.path === "/onboarding" || req.path === "/onboarding.html" || req.path === "/activate" || req.path === "/activate.html") && authManager.isSetupComplete()) {
+    res.redirect("/");
+    return;
+  }
+  
+  next();
 });
 
 app.get("/activate", (_req: Request, res: Response) => {
   res.sendFile(path.join(publicPath, "activate.html"));
+});
+
+app.get("/onboarding", (_req: Request, res: Response) => {
+  res.sendFile(path.join(publicPath, "onboarding.html"));
 });
 
 app.post("/api/activate", async (req: Request, res: Response) => {
@@ -160,6 +196,86 @@ app.post("/api/auth/setup", (req: Request, res: Response) => {
   }
 });
 
+/** Test stream provider connectivity for onboarding. */
+app.post("/api/onboarding/test-stream", async (req: Request, res: Response) => {
+  try {
+    const { mode, host, port, rtmpUrl } = req.body as {
+      mode: string;
+      host?: string;
+      port?: number | string;
+      rtmpUrl?: string;
+    };
+    
+    if (mode === "local" || mode === "self-hosting") {
+      res.json({ success: true });
+      return;
+    }
+    
+    if (mode === "icecast") {
+      if (!host || !port) {
+        res.status(400).json({ error: "Host y puerto son requeridos para Icecast." });
+        return;
+      }
+      const socket = new net.Socket();
+      socket.setTimeout(2500);
+      
+      const success = await new Promise<boolean>((resolve) => {
+        socket.connect(Number(port), host, () => {
+          socket.destroy();
+          resolve(true);
+        });
+        
+        socket.on("error", () => {
+          resolve(false);
+        });
+        
+        socket.on("timeout", () => {
+          socket.destroy();
+          resolve(false);
+        });
+      });
+      
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.json({ success: false, error: `No se pudo conectar a ${host}:${port}` });
+      }
+      return;
+    }
+    
+    if (mode === "rtmp" || mode === "youtube") {
+      try {
+        const targetUrl = rtmpUrl || "rtmp://a.rtmp.youtube.com/live2";
+        let hostname = "a.rtmp.youtube.com";
+        try {
+          let hostPart = targetUrl;
+          if (hostPart.includes("://")) {
+            hostPart = hostPart.split("://")[1] || "";
+          }
+          hostPart = hostPart.split("/")[0] || "";
+          hostname = hostPart.split(":")[0] || "a.rtmp.youtube.com";
+        } catch {
+          // Ignore, use fallback
+        }
+        
+        const addresses = await dns.promises.resolve(hostname).catch(() => []);
+        if (addresses.length > 0) {
+          res.json({ success: true });
+        } else {
+          res.json({ success: false, error: `No se pudo resolver el host ${hostname}` });
+        }
+      } catch (err) {
+        res.json({ success: false, error: "URL de RTMP inválida." });
+      }
+      return;
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 /** Login endpoint. */
 app.post("/api/auth/login", (req: Request, res: Response) => {
   try {
@@ -272,7 +388,7 @@ app.get("/api/status", (_req: Request, res: Response) => {
     outputMode: settingsManager.getSettings().outputMode,
     allowGuestAdd: settingsManager.getSettings().allowGuestAdd,
     exposeServer: settingsManager.getSettings().exposeServer,
-    publicUrl: tunnelManager.getPublicUrl(),
+    publicUrl: settingsManager.getSettings().duckdnsEnabled ? caddyManager.getPublicUrl() : tunnelManager.getPublicUrl(),
     currentTrack: current ? {
       youtubeId: current.youtubeId,
       title: current.title,
@@ -509,6 +625,30 @@ app.post("/api/settings", requireRole(["owner", "admin"]), (req: Request, res: R
     if (streamSettingsChanged && streamWorker.isRunning) {
       streamWorker.restartEncoder();
     }
+
+    const ddnsSettingsChanged =
+      oldSettings.duckdnsEnabled !== updatedSettings.duckdnsEnabled ||
+      oldSettings.duckdnsDomain !== updatedSettings.duckdnsDomain ||
+      oldSettings.duckdnsToken !== updatedSettings.duckdnsToken;
+
+    if (ddnsSettingsChanged) {
+      ddnsManager.restart();
+    }
+
+    const caddySettingsChanged =
+      oldSettings.duckdnsEnabled !== updatedSettings.duckdnsEnabled ||
+      oldSettings.duckdnsDomain !== updatedSettings.duckdnsDomain ||
+      oldSettings.duckdnsToken !== updatedSettings.duckdnsToken ||
+      oldSettings.port !== updatedSettings.port ||
+      oldSettings.ownerEmail !== updatedSettings.ownerEmail;
+
+    if (caddySettingsChanged) {
+      if (updatedSettings.duckdnsEnabled) {
+        caddyManager.restart();
+      } else {
+        caddyManager.stop();
+      }
+    }
     
     res.json({ success: true, settings: updatedSettings });
   } catch (err) {
@@ -611,12 +751,26 @@ app.listen(PORT, "0.0.0.0", async () => {
       console.error("❌ Error starting tunnel on boot:", err);
     });
   }
+
+  // Start Caddy on boot if enabled (only if activated)
+  if (settings.duckdnsEnabled && isActivated) {
+    try {
+      caddyManager.start();
+    } catch (err) {
+      console.error("❌ Error starting Caddy on boot:", err);
+    }
+  }
+
+  // Start DuckDNS updater
+  ddnsManager.start();
 });
 
 // Handle clean shutdown
 const shutdown = () => {
   console.log("👋 Shutting down ProcyonRadio server...");
+  ddnsManager.stop();
   tunnelManager.stop();
+  caddyManager.stop();
   streamWorker.stop();
   process.exit(0);
 };

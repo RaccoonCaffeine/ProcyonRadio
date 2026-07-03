@@ -39,6 +39,11 @@ class QueueManager {
     return [...this.queue];
   }
 
+  /** Set the queue directly (used for testing and database restore). */
+  setQueue(items: QueueItem[]): void {
+    this.queue = [...items];
+  }
+
   /** Creates a new QueueItem and pushes it to the back of the queue. */
   add(youtubeId: string): QueueItem {
     const trackNumber = String(this.queue.length + 1).padStart(2, '0');

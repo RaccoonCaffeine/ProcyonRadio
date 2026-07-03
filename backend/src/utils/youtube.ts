@@ -110,7 +110,7 @@ export async function extractYoutubeIds(url: string): Promise<string[]> {
   // Conditionally apply PoT Provider base_url if set
   let potArgs = "";
   if (settings.potProviderUrl && settings.potProviderUrl.trim().length > 0) {
-    potArgs = `--js-runtimes deno --extractor-args "youtube:player_client=web_embedded;fetch_pot=always" --extractor-args "youtubepot-bgutilhttp:base_url=${settings.potProviderUrl.trim()}"`;
+    potArgs = `--js-runtimes node --js-runtimes deno --extractor-args "youtube:player_client=web_embedded;fetch_pot=always" --extractor-args "youtubepot-bgutilhttp:base_url=${settings.potProviderUrl.trim()}"`;
   }
 
   try {
@@ -188,7 +188,7 @@ export async function getTrackMetadata(id: string): Promise<TrackMetadata> {
 
   let potArgs = "";
   if (!isSoundCloudUrl(sanitizedId) && settings.potProviderUrl && settings.potProviderUrl.trim().length > 0) {
-    potArgs = `--js-runtimes deno --extractor-args "youtube:player_client=web_embedded;fetch_pot=always" --extractor-args "youtubepot-bgutilhttp:base_url=${settings.potProviderUrl.trim()}"`;
+    potArgs = `--js-runtimes node --js-runtimes deno --extractor-args "youtube:player_client=web_embedded;fetch_pot=always" --extractor-args "youtubepot-bgutilhttp:base_url=${settings.potProviderUrl.trim()}"`;
   }
 
   try {
@@ -248,25 +248,38 @@ export async function searchTracks(query: string): Promise<SearchResult[]> {
   
   let potArgs = "";
   if (settings.potProviderUrl && settings.potProviderUrl.trim().length > 0) {
-    potArgs = `--js-runtimes deno --extractor-args "youtube:player_client=web_embedded;fetch_pot=always" --extractor-args "youtubepot-bgutilhttp:base_url=${settings.potProviderUrl.trim()}"`;
+    potArgs = `--js-runtimes node --js-runtimes deno --extractor-args "youtube:player_client=web_embedded;fetch_pot=always" --extractor-args "youtubepot-bgutilhttp:base_url=${settings.potProviderUrl.trim()}"`;
   }
 
-  const escapedQuery = query.replace(/"/g, '\\"');
   try {
+    const searchUrl = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
     // --flat-playlist is fast as it does not retrieve final video source URLs
     const { stdout } = await execAsync(
-      `${ytDlpCmd} ${potArgs} --flat-playlist --dump-json "ytsearch5:${escapedQuery}"`
+      `${ytDlpCmd} ${potArgs} --flat-playlist --dump-json "${searchUrl}"`
     );
     const lines = stdout.split("\n").filter((line) => line.trim().length > 0);
     const results: SearchResult[] = [];
     for (const line of lines) {
       try {
         const data = JSON.parse(line);
+        // Exclude channels, playlists, or browse tabs
+        if (data.ie_key === "YoutubeTab" || (data.url && data.url.includes("/browse/"))) {
+          continue;
+        }
         if (data.id) {
+          let title = data.title || "Unknown Title";
+          let artist = data.playlist_title || "Unknown Artist";
+
+          if (title.includes(" - ")) {
+            const parts = title.split(" - ");
+            artist = parts[0].trim();
+            title = parts.slice(1).join(" - ").trim();
+          }
+
           results.push({
             youtubeId: data.id,
-            title: data.title || "Unknown Title",
-            artist: data.uploader || data.artist || "Unknown Channel",
+            title: title,
+            artist: artist,
             duration: Number(data.duration) || 0,
             thumbnail: data.thumbnail || `https://img.youtube.com/vi/${data.id}/default.jpg`
           });
@@ -275,7 +288,7 @@ export async function searchTracks(query: string): Promise<SearchResult[]> {
         console.error("Error parsing JSON line from yt-dlp search:", e);
       }
     }
-    return results;
+    return results.slice(0, 5);
   } catch (err) {
     console.error("❌ yt-dlp search failed:", err);
     return [];

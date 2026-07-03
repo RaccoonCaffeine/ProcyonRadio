@@ -239,7 +239,7 @@
         </div>
 
         <div class="system-notices bg-slate-100/30 dark:bg-white/[0.01] border border-slate-200/40 dark:border-white/[0.04] rounded-lg p-2 text-center">
-          <p class="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1.5 leading-relaxed">
+          <p id="stream-delay-notice" class="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1.5 leading-relaxed">
             <i class="fa-solid fa-circle-info text-procyon-lightCyan dark:text-procyon-cyan"></i> Nota: El stream en YouTube tiene entre 5 y 30 segundos de retraso.
           </p>
         </div>
@@ -499,6 +499,29 @@
           <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">URL de PoT Provider (WSL/Docker)</label>
           <input type="text" id="settings-pot-url" placeholder="ej. http://localhost:4416" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
           <span class="text-[10px] text-slate-400 dark:text-slate-500">Dejar vacío para transmisiones fuera de Docker en Windows.</span>
+        </div>
+        <!-- DuckDNS IP Updater -->
+        <div class="border-t border-slate-200 dark:border-white/[0.06] pt-3 flex flex-col gap-3">
+          <div class="flex items-center">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="settings-duckdns-enabled" class="sr-only peer">
+              <div class="relative w-9 h-5 bg-slate-200 dark:bg-white/10 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-procyon-lightIndigo dark:peer-checked:bg-procyon-indigo"></div>
+              <span class="ms-3 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">Activar Actualizador DuckDNS (IP Dinámica)</span>
+            </label>
+          </div>
+          <div id="settings-duckdns-fields" class="grid grid-cols-2 gap-3 transition-all duration-300 hidden">
+            <div>
+              <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Subdominio DuckDNS</label>
+              <div class="relative flex items-center">
+                <input type="text" id="settings-duckdns-domain" placeholder="ej. mi-radio" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl pl-3 pr-20 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
+                <span class="absolute right-3 text-2xs font-semibold text-slate-400 dark:text-slate-500 pointer-events-none">.duckdns.org</span>
+              </div>
+            </div>
+            <div>
+              <label class="block text-2xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Token DuckDNS</label>
+              <input type="password" id="settings-duckdns-token" placeholder="Tu token de DuckDNS" class="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/[0.08] rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 dark:text-white outline-none">
+            </div>
+          </div>
         </div>
       </div>
 

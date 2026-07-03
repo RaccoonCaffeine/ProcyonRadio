@@ -112,9 +112,14 @@ export const elements = {
   settingsStreamServerEnabled: document.getElementById('settings-stream-server-enabled'),
   settingsGuestAdd: document.getElementById('settings-guest-add'),
   settingsPotUrl: document.getElementById('settings-pot-url'),
+  settingsDuckdnsEnabled: document.getElementById('settings-duckdns-enabled'),
+  settingsDuckdnsFields: document.getElementById('settings-duckdns-fields'),
+  settingsDuckdnsDomain: document.getElementById('settings-duckdns-domain'),
+  settingsDuckdnsToken: document.getElementById('settings-duckdns-token'),
 
   searchResultsDropdown: document.getElementById('search-results-dropdown'),
   persistentAlertsContainer: document.getElementById('persistent-alerts-container'),
+  streamDelayNotice: document.getElementById('stream-delay-notice'),
 
   // Cloudflare
   settingsExposeServer: document.getElementById('settings-expose-server'),
@@ -537,6 +542,25 @@ export function updateUI() {
     if (elements.settingsTunnelStatusGroup) {
       elements.settingsTunnelStatusGroup.classList.add('hidden');
     }
+  }
+
+  // 3.7. Update Stream Delay Notice based on transmission method
+  if (elements.streamDelayNotice) {
+    let delayNoticeText = 'Nota: La transmisión local tiene entre 1 y 3 segundos de retraso.';
+    if (state.outputMode === 'youtube') {
+      delayNoticeText = 'Nota: El stream en YouTube tiene entre 5 y 30 segundos de retraso.';
+    } else if (state.outputMode === 'icecast') {
+      delayNoticeText = 'Nota: La transmisión por Icecast tiene entre 4 y 8 segundos de retraso.';
+    } else if (state.publicUrl) {
+      if (state.publicUrl.includes('trycloudflare.com')) {
+        delayNoticeText = 'Nota: La transmisión por Cloudflare Tunnel tiene entre 2 y 5 segundos de retraso.';
+      } else if (state.publicUrl.includes('duckdns.org')) {
+        delayNoticeText = 'Nota: La transmisión por DuckDNS tiene entre 2 y 5 segundos de retraso.';
+      } else {
+        delayNoticeText = 'Nota: La transmisión remota tiene entre 2 y 5 segundos de retraso.';
+      }
+    }
+    elements.streamDelayNotice.innerHTML = `<i class="fa-solid fa-circle-info text-procyon-lightCyan dark:text-procyon-cyan"></i> ${delayNoticeText}`;
   }
 
   // 4. Queue List

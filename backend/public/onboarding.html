@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuración Inicial - ProcyonRadio</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    :root {
+      --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      --color-bg: #f8fafc; /* Slate 50 */
+      --color-card: #ffffff;
+      --color-text-main: #0f172a; /* Slate 900 */
+      --color-text-muted: #64748b; /* Slate 500 */
+      --color-primary: #4f46e5; /* Indigo 600 */
+      --color-primary-hover: #4338ca; /* Indigo 700 */
+      --color-border: #e2e8f0; /* Slate 200 */
+      --color-error: #ef4444; /* Red 500 */
+      --color-success: #10b981; /* Emerald 500 */
+      --color-cyan: #06b6d4; /* Cyan 500 */
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-bg: #0b0f19; /* Very dark slate */
+        --color-card: #111827; /* Dark gray */
+        --color-text-main: #f9fafb; /* Light gray */
+        --color-text-muted: #9ca3af;
+        --color-primary: #6366f1; /* Indigo 500 */
+        --color-primary-hover: #4f46e5;
+        --color-border: #1f2937;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--color-bg);
+      color: var(--color-text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow-x: hidden;
+      transition: background-color 0.3s ease;
+    }
+
+    /* Ambient Glow background */
+    .glow-container {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow-1 {
+      position: absolute;
+      top: -10%;
+      right: -10%;
+      width: 50vw;
+      height: 50vw;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+      filter: blur(80px);
+    }
+    .glow-2 {
+      position: absolute;
+      bottom: -10%;
+      left: -10%;
+      width: 45vw;
+      height: 45vw;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.08) 0%, transparent 70%);
+      filter: blur(80px);
+    }
+
+    /* Wizard Layout */
+    .wizard-container {
+      display: flex;
+      flex-direction: row;
+      background-color: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 28px;
+      width: 100%;
+      max-w: 840px;
+      min-height: 540px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+      z-index: 10;
+      overflow: hidden;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+      .wizard-container {
+        flex-direction: column-reverse;
+        max-w: 460px;
+        min-height: auto;
+      }
+      .mascot-sidebar {
+        width: 100% !important;
+        padding: 24px !important;
+        border-right: none !important;
+        border-top: 1px solid var(--color-border);
+        flex-direction: row !important;
+        gap: 16px;
+        align-items: center;
+      }
+      .mascot-wrapper {
+        width: 70px !important;
+        height: 70px !important;
+      }
+      .speech-bubble {
+        margin-top: 0 !important;
+        flex: 1;
+      }
+      .speech-bubble::before {
+        display: none;
+      }
+    }
+
+    /* Content Area */
+    .content-area {
+      flex: 1;
+      padding: 44px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* Mascot Sidebar */
+    .mascot-sidebar {
+      width: 280px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.03) 0%, rgba(6, 182, 212, 0.02) 100%);
+      border-right: 1px solid var(--color-border);
+      padding: 40px 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* Pache animations styling */
+    .mascot-wrapper {
+      width: 140px;
+      height: 140px;
+      transition: transform 0.3s ease;
+    }
+
+    @keyframes pache-idle {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-4px) scale(0.98); }
+    }
+    .pache-animate-idle {
+      animation: pache-idle 4s ease-in-out infinite;
+    }
+
+    @keyframes pache-groovy {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      25% { transform: translateY(-8px) rotate(-3deg); }
+      50% { transform: translateY(2px) rotate(0deg); }
+      75% { transform: translateY(-8px) rotate(3deg); }
+    }
+    .pache-animate-groovy {
+      animation: pache-groovy 1s ease-in-out infinite;
+    }
+
+    /* Target the eyes in the SVG paths */
+    #pache-avatar svg #path22-8,
+    #pache-avatar svg #path25-2 {
+      transform-box: fill-box !important;
+      transform-origin: center !important;
+      animation: pache-blink 5s ease-in-out infinite !important;
+    }
+
+    @keyframes pache-blink {
+      0%, 90%, 94%, 98%, 100% { transform: scaleY(1); }
+      92%, 96% { transform: scaleY(0.1); }
+    }
+
+    /* Speech Bubble */
+    .speech-bubble {
+      background-color: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 18px;
+      padding: 16px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.5;
+      margin-top: 24px;
+      position: relative;
+      color: var(--color-text-main);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+    .speech-bubble::before {
+      content: '';
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 8px;
+      border-style: solid;
+      border-color: transparent transparent var(--color-border) transparent;
+    }
+    .speech-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 7px;
+      border-style: solid;
+      border-color: transparent transparent var(--color-bg) transparent;
+      margin-bottom: -1px;
+    }
+
+    /* Steps Progress */
+    .steps-indicator {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .step-dot {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background-color: var(--color-border);
+      transition: background-color 0.3s ease;
+    }
+    .step-dot.active {
+      background-color: var(--color-primary);
+    }
+    .step-dot.completed {
+      background-color: var(--color-cyan);
+    }
+
+    /* Heading */
+    h2 {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    /* Forms */
+    .form-step {
+      display: none;
+      animation: fadeIn 0.4s ease-out;
+    }
+    .form-step.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+      text-align: left;
+    }
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--color-text-muted);
+      margin-bottom: 6px;
+    }
+    .input-wrapper {
+      position: relative;
+    }
+    .input-wrapper i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--color-text-muted);
+      font-size: 13px;
+    }
+    input, select {
+      width: 100%;
+      padding: 11px 12px 11px 38px;
+      font-size: 14px;
+      font-family: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--color-border);
+      background-color: var(--color-bg);
+      color: var(--color-text-main);
+      outline: none;
+      transition: all 0.2s ease;
+    }
+    input:focus, select:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+      background-color: var(--color-card);
+    }
+
+    /* Tabs for Step 4 */
+    .output-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 16px;
+      gap: 16px;
+    }
+    .tab-btn {
+      padding: 8px 4px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: none !important;
+    }
+    .tab-btn.active {
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
+    }
+
+    .output-pane {
+      display: none;
+    }
+    .output-pane.active {
+      display: block;
+    }
+
+    .info-box {
+      font-size: 12px;
+      color: var(--color-text-muted);
+      background-color: var(--color-bg);
+      border: 1px solid var(--color-border);
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 12px;
+      line-height: 1.5;
+    }
+
+    /* Buttons Footer */
+    .actions-footer {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 32px;
+      gap: 12px;
+    }
+
+    button {
+      padding: 11px 22px;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    .btn-primary {
+      color: #ffffff;
+      background-color: var(--color-primary);
+      box-shadow: 0 4px 10px rgba(79, 70, 229, 0.1);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background-color: var(--color-primary-hover);
+      box-shadow: 0 6px 14px rgba(79, 70, 229, 0.15);
+    }
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .btn-secondary {
+      color: var(--color-text-main);
+      background-color: var(--color-bg);
+      border: 1px solid var(--color-border);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background-color: var(--color-border);
+    }
+    .btn-secondary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .spinner {
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+
+    .alert-message {
+      background-color: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.15);
+      color: var(--color-error);
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 18px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-card {
+      background-color: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 20px;
+      padding: 28px;
+      max-w: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--color-error);
+      margin-bottom: 12px;
+    }
+    .modal-text {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-container">
+    <div class="glow-1"></div>
+    <div class="glow-2"></div>
+  </div>
+
+  <div class="wizard-container">
+    <!-- Mascot Sidebar -->
+    <div class="mascot-sidebar">
+      <div class="mascot-wrapper pache-animate-idle" id="pache-avatar">
+        <!-- SVG will load here -->
+      </div>
+      <div class="speech-bubble">
+        <span id="speech-bubble-text">¡Hola! Soy Pache. Te guiaré en la configuración inicial de tu estación. 🦝</span>
+      </div>
+    </div>
+
+    <!-- Content Area -->
+    <div class="content-area">
+      <div>
+        <!-- Step indicator -->
+        <div class="steps-indicator">
+          <div class="step-dot active" id="dot-1"></div>
+          <div class="step-dot" id="dot-2"></div>
+          <div class="step-dot" id="dot-3"></div>
+          <div class="step-dot" id="dot-4"></div>
+        </div>
+
+        <div class="alert-message" id="error-alert">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span id="error-text">Ocurrió un error.</span>
+        </div>
+
+        <!-- STEP 1: License Activation -->
+        <div class="form-step active" id="step-1">
+          <h2>Activación de Licencia</h2>
+          <p class="subtitle">Validemos tu llave de ProcyonRadio contra nuestro DRM central de Supabase.</p>
+          <div class="form-group">
+            <label for="license-key">Clave de Licencia</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-key"></i>
+              <input type="text" id="license-key" placeholder="PROCYON-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2: Administrator Creation -->
+        <div class="form-step" id="step-2">
+          <h2>Cuenta del Propietario</h2>
+          <p class="subtitle">Crea la cuenta principal de administrador local (Owner) para gestionar la radio.</p>
+          <div class="form-group">
+            <label for="owner-username">Nombre de Usuario</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-user"></i>
+              <input type="text" id="owner-username" placeholder="ej. admin" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="owner-password">Contraseña (Mínimo 6 caracteres)</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-lock"></i>
+              <input type="password" id="owner-password" placeholder="••••••••">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="owner-confirm">Confirmar Contraseña</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-circle-check"></i>
+              <input type="password" id="owner-confirm" placeholder="••••••••">
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: Identity & General settings -->
+        <div class="form-step" id="step-3">
+          <h2>Identidad de la Estación</h2>
+          <p class="subtitle">Define los parámetros estéticos y de identidad generales para la radio.</p>
+          <div class="form-group">
+            <label for="station-alias">Alias de la Estación (Slug / Corto)</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-radio"></i>
+              <input type="text" id="station-alias" placeholder="ej. losxpp" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="owner-email">Correo Electrónico de Contacto</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-envelope"></i>
+              <input type="email" id="owner-email" placeholder="ej. owner@procyon.cl" autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="station-lang">Idioma Base</label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-language"></i>
+              <select id="station-lang">
+                <option value="es" selected>Español (es)</option>
+                <option value="en">English (en)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4: Output / Emission mode selection -->
+        <div class="form-step" id="step-4">
+          <h2>Modo de Emisión y Salida</h2>
+          <p class="subtitle">Selecciona la forma en que los oyentes e in-game FiveM se conectarán a tu audio.</p>
+          
+          <div class="output-tabs">
+            <button type="button" class="tab-btn active" onclick="switchOutputTab('self-hosting')">Self-Hosting SSL</button>
+            <button type="button" class="tab-btn" onclick="switchOutputTab('cloudflare')">Cloudflare Tunnel</button>
+            <button type="button" class="tab-btn" onclick="switchOutputTab('local')">Local Directo</button>
+          </div>
+
+          <!-- Self Hosting Pane -->
+          <div class="output-pane active" id="pane-self-hosting">
+            <div class="form-group">
+              <label for="duckdns-domain">Subdominio DuckDNS</label>
+              <div class="relative" style="position: relative;">
+                <input type="text" id="duckdns-domain" placeholder="ej. mi-radio" style="padding-right: 90px;" autocomplete="off" spellcheck="false">
+                <span style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 11px; font-weight: bold; color: var(--color-text-muted);">.duckdns.org</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="duckdns-token">Token DuckDNS</label>
+              <div class="input-wrapper">
+                <i class="fa-solid fa-shield-halved"></i>
+                <input type="password" id="duckdns-token" placeholder="Tu token de DuckDNS">
+              </div>
+            </div>
+            <div class="info-box">
+              <i class="fa-solid fa-circle-info" style="color: var(--color-primary);"></i>
+              <strong>Self-Hosting con Caddy & DuckDNS (Recomendado):</strong> Levantará el proxy Caddy y renovará automáticamente un certificado SSL Let's Encrypt mediante DNS challenge. Sin retraso de emisión (2-5s).
+            </div>
+          </div>
+
+          <!-- Cloudflare Pane -->
+          <div class="output-pane" id="pane-cloudflare">
+            <div class="info-box" style="margin-top: 0;">
+              <i class="fa-solid fa-bolt" style="color: var(--color-cyan);"></i>
+              <strong>Túnel de Cloudflare:</strong> Expone el panel de control y el audio a través de un enlace público aleatorio provisto por Cloudflare de forma gratuita. Ideal para configuraciones rápidas sin abrir puertos en el router. Retraso: 2-5s.
+            </div>
+          </div>
+
+          <!-- Local-Only Pane -->
+          <div class="output-pane" id="pane-local">
+            <div class="info-box" style="margin-top: 0;">
+              <i class="fa-solid fa-network-wired"></i>
+              <strong>Local Directo:</strong> Sin proxy externo ni túneles. El servidor se mantendrá disponible únicamente en tu red local (LAN) o mediante redirección de puertos manual en tu router. Retraso ultra-bajo (1-3s).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="actions-footer">
+        <button class="btn-secondary" id="btn-prev" disabled>Atrás</button>
+        <div>
+          <button class="btn-secondary" id="btn-skip-val" style="display: none; color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);">Saltar Validación</button>
+          <button class="btn-primary" id="btn-next">
+            <span id="btn-next-text">Siguiente</span>
+            <i class="fa-solid fa-arrow-right" id="btn-next-icon"></i>
+            <i class="fa-solid fa-circle-notch spinner" id="btn-next-spinner"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Warning Modal -->
+  <div class="modal-overlay" id="skip-modal">
+    <div class="modal-card">
+      <div class="modal-title">⚠️ ¡Advertencia Crítica!</div>
+      <div class="modal-text">
+        Estás omitiendo la prueba de validación de emisión. Si continuas, la radio podría arrancar en "Modo Desconectado" y no ser accesible por tus oyentes in-game. ¿Seguro que deseas continuar?
+      </div>
+      <div style="display: flex; gap: 12px; justify-content: center;">
+        <button class="btn-secondary" onclick="closeWarningModal()">Cancelar</button>
+        <button class="btn-primary" style="background-color: var(--color-error);" onclick="confirmSkipValidation()">Sí, Omitir</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    let selectedOutputTab = 'self-hosting';
+    let data = {
+      licenseKey: '',
+      username: '',
+      password: '',
+      stationAlias: '',
+      ownerEmail: '',
+      stationLanguage: 'es',
+      outputMode: 'icecast', // Default placeholder compatibility
+      streamServerEnabled: true,
+      duckdnsEnabled: false,
+      duckdnsDomain: '',
+      duckdnsToken: '',
+      exposeServer: false,
+      useCloudflare: false
+    };
+
+    // Mascot Dialogues for steps
+    const dialogues = {
+      1: "¡Hola! Soy Pache. Valida tu clave de activación de Supabase para iniciar. 🦝🔑",
+      2: "¡Excelente! Ahora configuremos tu cuenta de Administrador (Owner). Elige tus credenciales locales. 👑",
+      3: "Cuéntame, ¿cómo se llamará tu estación de radio? Ponle un alias e inyecta tu correo para auditorías. 📻✍️",
+      4: "¡Último paso! Selecciona cómo quieres emitir tu música. Con DuckDNS obtendrás SSL certificado y seguro. 📡✨",
+      testing: "Espera un momento... estoy testeando los canales de red de FFmpeg. ⏱️⚡",
+      success: "¡Configuración exitosa! Todo listo para armar tus pautas e inyectar rolitas. Redirigiendo... 🎉🦝"
+    };
+
+    // Load Pache Svg
+    async function loadMascot() {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const url = isDark ? 'pache_dark.svg' : 'pache_light.svg';
+      const wrapper = document.getElementById('pache-avatar');
+      
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const svg = await res.text();
+          wrapper.innerHTML = svg;
+          // Apply scale settings
+          const svgEl = wrapper.querySelector('svg');
+          if (svgEl) {
+            svgEl.setAttribute('width', '100%');
+            svgEl.setAttribute('height', '100%');
+            svgEl.removeAttribute('width');
+            svgEl.removeAttribute('height');
+          }
+        }
+      } catch (err) {
+        console.error("Mascot failed to load:", err);
+      }
+    }
+
+    loadMascot();
+
+    function setDialogue(text) {
+      document.getElementById('speech-bubble-text').textContent = text;
+    }
+
+    function setMascotAnimation(isPlaying) {
+      const el = document.getElementById('pache-avatar');
+      if (isPlaying) {
+        el.className = 'mascot-wrapper pache-animate-groovy';
+      } else {
+        el.className = 'mascot-wrapper pache-animate-idle';
+      }
+    }
+
+    function switchOutputTab(tab) {
+      selectedOutputTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.output-pane').forEach(pane => pane.classList.remove('active'));
+      
+      if (tab === 'self-hosting') {
+        document.querySelector('.tab-btn[onclick="switchOutputTab(\'self-hosting\')"]').classList.add('active');
+        document.getElementById('pane-self-hosting').classList.add('active');
+        data.duckdnsEnabled = true;
+        data.exposeServer = false;
+        data.useCloudflare = false;
+      } else if (tab === 'cloudflare') {
+        document.querySelector('.tab-btn[onclick="switchOutputTab(\'cloudflare\')"]').classList.add('active');
+        document.getElementById('pane-cloudflare').classList.add('active');
+        data.duckdnsEnabled = false;
+        data.exposeServer = true;
+        data.useCloudflare = true;
+      } else {
+        document.querySelector('.tab-btn[onclick="switchOutputTab(\'local\')"]').classList.add('active');
+        document.getElementById('pane-local').classList.add('active');
+        data.duckdnsEnabled = false;
+        data.exposeServer = false;
+        data.useCloudflare = false;
+      }
+    }
+
+    // Navigation and validation
+    const btnNext = document.getElementById('btn-next');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnSkipVal = document.getElementById('btn-skip-val');
+    const errorAlert = document.getElementById('error-alert');
+    const errorText = document.getElementById('error-text');
+
+    function showError(msg) {
+      errorText.textContent = msg;
+      errorAlert.style.display = 'flex';
+    }
+    function hideError() {
+      errorAlert.style.display = 'none';
+    }
+
+    function setBtnLoading(loading) {
+      const text = document.getElementById('btn-next-text');
+      const icon = document.getElementById('btn-next-icon');
+      const spinner = document.getElementById('btn-next-spinner');
+      
+      if (loading) {
+        btnNext.disabled = true;
+        btnPrev.disabled = true;
+        text.style.display = 'none';
+        icon.style.display = 'none';
+        spinner.style.display = 'inline-block';
+      } else {
+        btnNext.disabled = false;
+        btnPrev.disabled = currentStep === 1;
+        text.style.display = 'inline';
+        icon.style.display = 'inline';
+        spinner.style.display = 'none';
+      }
+    }
+
+    btnPrev.addEventListener('click', () => {
+      if (currentStep > 1) {
+        hideError();
+        document.getElementById(`step-${currentStep}`).classList.remove('active');
+        document.getElementById(`dot-${currentStep}`).classList.remove('active');
+        currentStep--;
+        document.getElementById(`step-${currentStep}`).classList.add('active');
+        document.getElementById(`dot-${currentStep}`).classList.add('active');
+        setDialogue(dialogues[currentStep]);
+        btnPrev.disabled = currentStep === 1;
+        document.getElementById('btn-next-text').textContent = 'Siguiente';
+        btnSkipVal.style.display = 'none';
+        setMascotAnimation(false);
+      }
+    });
+
+    btnNext.addEventListener('click', async () => {
+      hideError();
+      setMascotAnimation(false);
+
+      if (currentStep === 1) {
+        const key = document.getElementById('license-key').value.trim();
+        if (!key) {
+          showError("Por favor ingresa tu clave de licencia.");
+          return;
+        }
+        
+        setBtnLoading(true);
+        try {
+          const res = await fetch('/api/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key })
+          });
+          const resData = await res.json();
+          if (res.ok && resData.success) {
+            data.licenseKey = key;
+            goToStep(2);
+          } else {
+            showError(resData.error || "La clave de licencia no es válida o está suspendida.");
+          }
+        } catch (err) {
+          showError("Error de comunicación con el servidor local.");
+        } finally {
+          setBtnLoading(false);
+        }
+      } 
+      
+      else if (currentStep === 2) {
+        const username = document.getElementById('owner-username').value.trim();
+        const password = document.getElementById('owner-password').value;
+        const confirm = document.getElementById('owner-confirm').value;
+        
+        if (!username || username.length < 3) {
+          showError("El usuario debe tener al menos 3 caracteres.");
+          return;
+        }
+        if (!password || password.length < 6) {
+          showError("La contraseña debe tener al menos 6 caracteres.");
+          return;
+        }
+        if (password !== confirm) {
+          showError("Las contraseñas no coinciden.");
+          return;
+        }
+        
+        data.username = username;
+        data.password = password;
+        goToStep(3);
+      } 
+      
+      else if (currentStep === 3) {
+        const alias = document.getElementById('station-alias').value.trim();
+        const email = document.getElementById('owner-email').value.trim();
+        const lang = document.getElementById('station-lang').value;
+        
+        if (!alias) {
+          showError("Por favor define el alias de la estación.");
+          return;
+        }
+        if (!email || !email.includes('@')) {
+          showError("Por favor ingresa un correo de contacto válido.");
+          return;
+        }
+        
+        data.stationAlias = alias;
+        data.ownerEmail = email;
+        data.stationLanguage = lang;
+        
+        goToStep(4);
+        document.getElementById('btn-next-text').textContent = 'Finalizar';
+        switchOutputTab('self-hosting'); // Set default step 4 selection
+      } 
+      
+      else if (currentStep === 4) {
+        // Collect Step 4 settings details
+        if (selectedOutputTab === 'self-hosting') {
+          const dom = document.getElementById('duckdns-domain').value.trim();
+          const tok = document.getElementById('duckdns-token').value.trim();
+          if (!dom || !tok) {
+            showError("Subdominio y token son obligatorios para Caddy/DuckDNS.");
+            return;
+          }
+          data.duckdnsEnabled = true;
+          data.duckdnsDomain = dom;
+          data.duckdnsToken = tok;
+        } else {
+          data.duckdnsEnabled = false;
+          data.duckdnsDomain = '';
+          data.duckdnsToken = '';
+        }
+
+        setBtnLoading(true);
+        setDialogue(dialogues.testing);
+        setMascotAnimation(true);
+
+        // Run connection check
+        try {
+          const testRes = await fetch('/api/onboarding/test-stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mode: selectedOutputTab === 'self-hosting' ? 'icecast' : (selectedOutputTab === 'cloudflare' ? 'rtmp' : 'local'),
+              host: selectedOutputTab === 'self-hosting' ? `${data.duckdnsDomain}.duckdns.org` : 'localhost',
+              port: 8000,
+              rtmpUrl: 'rtmp://a.rtmp.youtube.com/live2'
+            })
+          });
+          const testData = await testRes.json();
+          
+          if (testRes.ok && testData.success) {
+            await saveSettingsAndComplete();
+          } else {
+            showError(testData.error || "La prueba de conexión con el proveedor falló. ¿Deseas saltar la validación?");
+            btnSkipVal.style.display = 'inline-block';
+            setMascotAnimation(false);
+          }
+        } catch (err) {
+          showError("Ocurrió un error al testear la conexión de red.");
+          btnSkipVal.style.display = 'inline-block';
+          setMascotAnimation(false);
+        } finally {
+          setBtnLoading(false);
+        }
+      }
+    });
+
+    function goToStep(step) {
+      document.getElementById(`step-${currentStep}`).classList.remove('active');
+      document.getElementById(`dot-${currentStep}`).classList.add('completed');
+      currentStep = step;
+      document.getElementById(`step-${currentStep}`).classList.add('active');
+      document.getElementById(`dot-${currentStep}`).classList.add('active');
+      setDialogue(dialogues[currentStep]);
+      btnPrev.disabled = false;
+    }
+
+    async function saveSettingsAndComplete() {
+      setBtnLoading(true);
+      try {
+        // 1. Register Owner
+        const ownerRes = await fetch('/api/auth/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: data.username,
+            password: data.password
+          })
+        });
+        
+        if (!ownerRes.ok) {
+          const errData = await ownerRes.json();
+          showError(errData.error || "Fallo en la creación del dueño.");
+          setBtnLoading(false);
+          return;
+        }
+
+        // 2. Perform Login to obtain token
+        const loginRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: data.username,
+            password: data.password
+          })
+        });
+        const loginData = await loginRes.json();
+        if (loginData.token) {
+          localStorage.setItem('token', loginData.token);
+        }
+
+        // 3. Save Settings (authenticated)
+        const settingsRes = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${loginData.token}`
+          },
+          body: JSON.stringify({
+            stationAlias: data.stationAlias,
+            stationLanguage: data.stationLanguage,
+            ownerEmail: data.ownerEmail,
+            streamServerEnabled: data.streamServerEnabled,
+            duckdnsEnabled: data.duckdnsEnabled,
+            duckdnsDomain: data.duckdnsDomain,
+            duckdnsToken: data.duckdnsToken,
+            exposeServer: data.exposeServer,
+            useCloudflare: data.useCloudflare
+          })
+        });
+
+        if (settingsRes.ok) {
+          setDialogue(dialogues.success);
+          setMascotAnimation(true);
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+        } else {
+          const errData = await settingsRes.json();
+          showError(errData.error || "Fallo al guardar la configuración de la estación.");
+          setBtnLoading(false);
+        }
+      } catch (err) {
+        showError("Ocurrió un error al guardar e inicializar la base de datos.");
+        setBtnLoading(false);
+      }
+    }
+
+    // Modal Skip Validation flow
+    const skipModal = document.getElementById('skip-modal');
+    btnSkipVal.addEventListener('click', () => {
+      skipModal.style.display = 'flex';
+    });
+
+    function closeWarningModal() {
+      skipModal.style.display = 'none';
+    }
+
+    async function confirmSkipValidation() {
+      closeWarningModal();
+      await saveSettingsAndComplete();
+    }
+  </script>
+</body>
+</html>

@@ -12,6 +12,7 @@
       "public/**/*",
       "ffmpeg.exe",
       "yt-dlp.exe",
+      "caddy.exe",
       "data/**/*"
     ],
     "outputPath": "dist/package"
@@ -20,6 +21,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
+    "prepare": "node scripts/download-caddy.js",
     "package:win": "pkg . --targets node22-win-x64 --output dist/package/ProcyonRadio.exe --compress GZip"
   },
   "dependencies": {
@@ -38,6 +40,6 @@
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   }
 }

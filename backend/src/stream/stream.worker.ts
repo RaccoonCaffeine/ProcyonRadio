@@ -215,6 +215,8 @@ class StreamWorker {
   private encoderProcess: ChildProcess | null = null;
   private decoderProcess: ChildProcess | null = null;
   private preloadProcess: ChildProcess | null = null;
+  private crossfadeOldDecoder: ChildProcess | null = null;
+  private isSkipping = false;
 
   // Preloaded data cache (FFmpeg 3)
   private nextTrackBuffer: Buffer = Buffer.alloc(0);
@@ -355,27 +357,11 @@ class StreamWorker {
       
       this.startPreloadCheck();
 
-      const hasPreloaded = false; // Disabled to prevent OS pipe buffering delays
       let decoder: ChildProcess;
 
-      if (hasPreloaded) {
-        console.log(`[StreamWorker] Using preloaded buffer for track ${this.nextTrackId}`);
-        const buffer = this.nextTrackBuffer;
-        
-        this.nextTrackBuffer = Buffer.alloc(0);
-        this.nextTrackId = "";
-
-        // Write the preloaded buffer to the encoder
-        this.writeToEncoder(buffer);
-
-        // Spawn decoder seeked to 15 seconds
-        decoder = spawnDecoder(url, false, 15, duration);
-        this.decoderProcess = decoder;
-      } else {
-        // Normal decoding from seekSeconds
-        decoder = spawnDecoder(url, false, seekSeconds, duration);
-        this.decoderProcess = decoder;
-      }
+      // Normal decoding from seekSeconds
+      decoder = spawnDecoder(url, false, seekSeconds, duration);
+      this.decoderProcess = decoder;
 
       const cleanup = () => {
         decoder.stdout?.removeAllListeners("data");
@@ -386,11 +372,107 @@ class StreamWorker {
           this.decoderProcess = null;
         }
         this.clearPreloadCheck();
+        
+        // Clean up any lingering crossfade decoder
+        if (this.crossfadeOldDecoder) {
+          try {
+            this.crossfadeOldDecoder.kill("SIGKILL");
+          } catch {}
+          this.crossfadeOldDecoder = null;
+        }
       };
 
-      decoder.stdout?.on("data", (chunk: Buffer) => {
-        this.writeToEncoder(chunk);
-      });
+      if (this.crossfadeOldDecoder) {
+        console.log(`[StreamWorker] Performing real-time crossfade mix in playTrackSource (Duration: ${this.fadeDuration}s)...`);
+        const oldDec = this.crossfadeOldDecoder;
+        
+        // Remove stdout listener from old decoder so it stops playing directly
+        oldDec.stdout?.removeAllListeners("data");
+
+        let isMixed = false;
+        const mixer = new PcmMixer(this.fadeDuration, (mixedChunk) => {
+          this.writeToEncoder(mixedChunk);
+        }, () => {
+          if (isMixed) return;
+          isMixed = true;
+          console.log("[StreamWorker] Real-time crossfade complete");
+          
+          try {
+            oldDec.kill("SIGKILL");
+          } catch {}
+          if (this.crossfadeOldDecoder === oldDec) {
+            this.crossfadeOldDecoder = null;
+          }
+
+          // Pipe new decoder stdout directly to encoder now
+          decoder.stdout?.removeAllListeners("data");
+          decoder.stdout?.on("data", (chunk: Buffer) => {
+            this.writeToEncoder(chunk);
+          });
+
+          const remainingB = mixer.getRemainingB();
+          if (remainingB.length > 0) {
+            this.writeToEncoder(remainingB);
+          }
+        });
+
+        oldDec.stdout?.on("data", (chunk: Buffer) => {
+          mixer.writeA(chunk);
+        });
+
+        decoder.stdout?.on("data", (chunk: Buffer) => {
+          if (!isMixed) {
+            mixer.writeB(chunk);
+          }
+        });
+
+        oldDec.on("close", () => {
+          if (!isMixed) {
+            isMixed = true;
+            console.log("[StreamWorker] Old decoder closed during crossfade, completing early");
+            try {
+              oldDec.kill("SIGKILL");
+            } catch {}
+            if (this.crossfadeOldDecoder === oldDec) {
+              this.crossfadeOldDecoder = null;
+            }
+            
+            decoder.stdout?.removeAllListeners("data");
+            decoder.stdout?.on("data", (chunk: Buffer) => {
+              this.writeToEncoder(chunk);
+            });
+
+            const remainingB = mixer.getRemainingB();
+            if (remainingB.length > 0) {
+              this.writeToEncoder(remainingB);
+            }
+          }
+        });
+
+        oldDec.on("error", () => {
+          // If old decoder fails, force completion of mixing
+          if (!isMixed) {
+            isMixed = true;
+            console.log("[StreamWorker] Old decoder error during crossfade, completing early");
+            try {
+              oldDec.kill("SIGKILL");
+            } catch {}
+            if (this.crossfadeOldDecoder === oldDec) {
+              this.crossfadeOldDecoder = null;
+            }
+            
+            decoder.stdout?.removeAllListeners("data");
+            decoder.stdout?.on("data", (chunk: Buffer) => {
+              this.writeToEncoder(chunk);
+            });
+          }
+        });
+
+      } else {
+        decoder.stdout?.on("data", (chunk: Buffer) => {
+          this.writeToEncoder(chunk);
+        });
+      }
 
       decoder.stderr?.on("data", (data: Buffer) => {
         const line = data.toString().trim();
@@ -543,14 +625,16 @@ class StreamWorker {
           this.currentTrack.startTime = Date.now();
           this.writeOverlayText(this.currentTrack.title, this.currentTrack.artist);
 
+          const playedTrack = this.currentTrack;
           await this.playTrackSource(audioUrl, this.currentTrack.pausedPosition, this.currentTrack.duration);
 
-          if (!this.isSeeking && !this.isPaused && this.currentTrack && this.currentTrack.startTime !== null) {
+          if (!this.isSeeking && !this.isPaused && !this.isSkipping && this.currentTrack === playedTrack && this.currentTrack && this.currentTrack.startTime !== null) {
             console.log(`✅ Finished playing: ${this.currentTrack.title}`);
             queueManager.addToHistory(this.currentTrack.youtubeId);
             this.currentTrack = null;
           }
           this.isSeeking = false;
+          this.isSkipping = false;
         } catch (err) {
           console.error("❌ Error playing current track:", err);
           if (this.currentTrack) {
@@ -698,112 +782,105 @@ class StreamWorker {
     this.interruptDecoder();
   }
 
-  public skip(ignoreHistory = false): void {
+  public async skip(ignoreHistory = false): Promise<void> {
     console.log("⏭️  Skipping current track");
     if (this.currentTrack && !ignoreHistory) {
       queueManager.addToHistory(this.currentTrack.youtubeId);
     }
     this.isPaused = false;
-
     this.clearPreloadCheck();
 
     const nextItem = queueManager.getQueue()[0];
-    const hasPreload = false; // Disabled to prevent OS pipe buffering delays
-
-    if (hasPreload && this.decoderProcess && this.fadeDuration > 0) {
-      console.log(`[StreamWorker] Performing crossfade skip to ${nextItem?.youtubeId}...`);
-      
-      const oldDecoder = this.decoderProcess;
-      oldDecoder.stdout?.removeAllListeners("data");
-
-      const item = queueManager.next();
-      if (!item) {
-        this.currentTrack = null;
-        oldDecoder.kill("SIGKILL");
-        if (this.activeResolver) this.activeResolver();
-        return;
-      }
-
-      this.currentTrack = {
-        youtubeId: item.youtubeId,
-        title: item.title || "Cargando...",
-        artist: item.artist || "Cargando...",
-        duration: item.duration || 0,
-        pausedPosition: 0,
-        startTime: Date.now(),
-        audioUrl: item.audioUrl
-      };
-      
-      this.writeOverlayText(this.currentTrack.title, this.currentTrack.artist);
-
-      let isMixed = false;
-      const mixer = new PcmMixer(this.fadeDuration, (mixedChunk) => {
-        this.writeToEncoder(mixedChunk);
-      }, () => {
-        if (isMixed) return;
-        isMixed = true;
-        console.log("[StreamWorker] Crossfade skip complete");
-        
-        oldDecoder.kill("SIGKILL");
-
-        const remaining = mixer.getRemainingB();
-        if (remaining.length > 0) {
-          this.writeToEncoder(remaining);
-        }
-
-        if (this.currentTrack && this.currentTrack.audioUrl) {
-          const newDecoder = spawnDecoder(this.currentTrack.audioUrl, false, 15, this.currentTrack.duration);
-          this.decoderProcess = newDecoder;
-
-          newDecoder.stdout?.on("data", (chunk: Buffer) => {
-            this.writeToEncoder(chunk);
-          });
-
-          newDecoder.on("close", () => {
-            this.decoderProcess = null;
-            if (this.activeResolver) this.activeResolver();
-          });
-        } else {
-          if (this.activeResolver) this.activeResolver();
-        }
-      });
-
-      mixer.writeB(this.nextTrackBuffer);
-      this.nextTrackBuffer = Buffer.alloc(0);
-      this.nextTrackId = "";
-
-      oldDecoder.stdout?.on("data", (chunk: Buffer) => {
-        mixer.writeA(chunk);
-      });
-
-      oldDecoder.on("close", () => {
-        if (!isMixed) {
-          isMixed = true;
-          console.log("[StreamWorker] Old decoder closed during crossfade, completing early");
-          const remaining = mixer.getRemainingB();
-          if (remaining.length > 0) {
-            this.writeToEncoder(remaining);
-          }
-          if (this.currentTrack && this.currentTrack.audioUrl) {
-            const newDecoder = spawnDecoder(this.currentTrack.audioUrl, false, 15, this.currentTrack.duration);
-            this.decoderProcess = newDecoder;
-            newDecoder.stdout?.on("data", (chunk: Buffer) => {
-              this.writeToEncoder(chunk);
-            });
-            newDecoder.on("close", () => {
-              this.decoderProcess = null;
-              if (this.activeResolver) this.activeResolver();
-            });
-          } else {
-            if (this.activeResolver) this.activeResolver();
-          }
-        }
-      });
-    } else {
-      // Normal immediate skip without crossfade
+    if (!nextItem) {
+      // If no next track, do an immediate skip to fallback
       this.currentTrack = null;
       this.nextTrackBuffer = Buffer.alloc(0);
       this.nextTrackId = "";
+      this.interruptDecoder();
+      return;
+    }
+
+    if (this.fadeDuration <= 0 || !this.decoderProcess) {
+      // If crossfade is disabled or no decoder is active, do immediate skip
+      this.currentTrack = null;
+      this.nextTrackBuffer = Buffer.alloc(0);
+      this.nextTrackId = "";
+      this.interruptDecoder();
+      return;
+    }
+
+    try {
+      console.log(`[StreamWorker] Crossfade: resolving next track ${nextItem.youtubeId}...`);
+      let audioUrl = nextItem.audioUrl;
+      let title = nextItem.title || "";
+      let artist = nextItem.artist || "";
+      let duration = nextItem.duration || 0;
+
+      if (!audioUrl || !title || !artist || !duration) {
+        const metadata = await getTrackMetadata(nextItem.youtubeId);
+        audioUrl = metadata.url;
+        title = metadata.title;
+        artist = metadata.artist;
+        duration = metadata.duration;
+      }
+
+      // Check if decoderProcess is still active
+      if (!this.decoderProcess) {
+        this.currentTrack = {
+          youtubeId: nextItem.youtubeId,
+          title,
+          artist,
+          duration,
+          pausedPosition: 0,
+          startTime: Date.now(),
+          audioUrl
+        };
+        queueManager.next();
+        this.interruptDecoder();
+        return;
+      }
+
+      console.log(`[StreamWorker] Initiating real-time crossfade from current track to ${title}...`);
+      
+      // Clean up previous crossfade decoder if one exists
+      if (this.crossfadeOldDecoder) {
+        try {
+          this.crossfadeOldDecoder.kill("SIGKILL");
+        } catch {}
+        this.crossfadeOldDecoder = null;
+      }
+
+      // Save current decoder for crossfade
+      this.crossfadeOldDecoder = this.decoderProcess;
+      this.decoderProcess = null; // Detach so interruptDecoder won't kill it
+      
+      this.currentTrack = {
+        youtubeId: nextItem.youtubeId,
+        title,
+        artist,
+        duration,
+        pausedPosition: 0,
+        startTime: Date.now(),
+        audioUrl
+      };
+      this.writeOverlayText(title, artist);
+
+      // Pop from queue
+      queueManager.next();
+
+      this.isSkipping = true;
+
+      // Resolve the current track's active resolver. This will cause playTrackSource of the old track to complete,
+      // and the main loop will iterate to start the next track.
+      if (this.activeResolver) {
+        const resolve = this.activeResolver;
+        this.activeResolver = null;
+        resolve();
+      }
+
+    } catch (err) {
+      console.error("❌ Crossfade skip failed, falling back to immediate skip:", err);
+      this.currentTrack = null;
       this.interruptDecoder();
     }
   }

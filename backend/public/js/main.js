@@ -1,4 +1,5 @@
 import { state, subscribe } from './state.js';
+import { initPache } from './pache.js';
 import { 
   fetchStatus, 
   addTrack, 
@@ -472,6 +473,17 @@ function initStaticListeners() {
     });
   }
 
+  // DuckDNS toggle checkbox change
+  if (elements.settingsDuckdnsEnabled && elements.settingsDuckdnsFields) {
+    elements.settingsDuckdnsEnabled.addEventListener('change', () => {
+      if (elements.settingsDuckdnsEnabled.checked) {
+        elements.settingsDuckdnsFields.classList.remove('hidden');
+      } else {
+        elements.settingsDuckdnsFields.classList.add('hidden');
+      }
+    });
+  }
+
   // Copy Tunnel stream links
   if (elements.btnCopyTunnelStream) {
     elements.btnCopyTunnelStream.addEventListener('click', () => {
@@ -547,6 +559,17 @@ function initStaticListeners() {
             elements.settingsStreamServerEnabled.checked = data.streamServerEnabled !== false;
           }
 
+          if (elements.settingsDuckdnsEnabled) {
+            elements.settingsDuckdnsEnabled.checked = data.duckdnsEnabled || false;
+            elements.settingsDuckdnsEnabled.dispatchEvent(new Event('change'));
+          }
+          if (elements.settingsDuckdnsDomain) {
+            elements.settingsDuckdnsDomain.value = data.duckdnsDomain || '';
+          }
+          if (elements.settingsDuckdnsToken) {
+            elements.settingsDuckdnsToken.value = data.duckdnsToken || '';
+          }
+
           if (elements.settingsOutputMode) {
             elements.settingsOutputMode.dispatchEvent(new Event('change'));
           }
@@ -600,7 +623,10 @@ function initStaticListeners() {
           bitrate: elements.settingsIceBitrate ? elements.settingsIceBitrate.value : '128k'
         },
         fadeDuration: state.fadeDuration,
-        potProviderUrl: elements.settingsPotUrl ? elements.settingsPotUrl.value.trim() : ''
+        potProviderUrl: elements.settingsPotUrl ? elements.settingsPotUrl.value.trim() : '',
+        duckdnsEnabled: elements.settingsDuckdnsEnabled ? elements.settingsDuckdnsEnabled.checked : false,
+        duckdnsDomain: elements.settingsDuckdnsDomain ? elements.settingsDuckdnsDomain.value.trim() : '',
+        duckdnsToken: elements.settingsDuckdnsToken ? elements.settingsDuckdnsToken.value.trim() : ''
       };
 
       try {
@@ -795,6 +821,7 @@ function initStaticListeners() {
 // ─── Bootstrap & Main Polling ────────────────────────────────────────
 async function init() {
   initTheme();
+  initPache();
   
   // Wire auth event handlers
   initAuthEvents();

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { dbService } from "../database/database.service.js";
 
 export interface AppSettings {
   port: number;
@@ -22,9 +23,13 @@ export interface AppSettings {
   useCloudflare: boolean;
   localBitrate: string;
   streamServerEnabled: boolean;
+  duckdnsEnabled: boolean;
+  duckdnsDomain: string;
+  duckdnsToken: string;
+  stationAlias: string;
+  stationLanguage: "es" | "en";
+  ownerEmail: string;
 }
-
-const SETTINGS_FILE_PATH = path.join(process.cwd(), "data", "settings.json");
 
 class SettingsManager {
   private settings!: AppSettings;
@@ -34,29 +39,62 @@ class SettingsManager {
   }
 
   /**
-   * Loads settings from settings.json. If the file does not exist,
-   * creates it with defaults merged from environment variables.
+   * Loads settings from SQLite system_settings table. If empty, checks for a legacy settings.json.
+   * If both are empty, initializes with default values.
    */
   load(): void {
-    const dataDir = path.dirname(SETTINGS_FILE_PATH);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    const db = dbService.getDb();
+    
+    // First, check if there are settings in DB
+    const rows = db.prepare("SELECT key, value FROM system_settings").all() as { key: string; value: string }[];
+    
+    if (rows.length > 0) {
+      // Load from DB
+      const parsed: Partial<AppSettings> = {};
+      for (const row of rows) {
+        const key = row.key as keyof AppSettings;
+        const val = row.value;
+        
+        if (key === "youtube" || key === "icecast") {
+          try {
+            parsed[key] = JSON.parse(val);
+          } catch {}
+        } else if (key === "port" || key === "fadeDuration" || key === "fallbackVolume" || key === "streamPort") {
+          parsed[key] = Number(val) as any;
+        } else if (key === "allowGuestAdd" || key === "exposeServer" || key === "useCloudflare" || key === "streamServerEnabled" || key === "duckdnsEnabled") {
+          parsed[key] = (val === "true") as any;
+        } else {
+          parsed[key] = val as any;
+        }
+      }
+      this.settings = this.mergeWithDefaults(parsed);
+      return;
     }
 
-    if (fs.existsSync(SETTINGS_FILE_PATH)) {
+    // If DB is empty, check if we have a legacy settings.json
+    let legacyPath = path.join(process.cwd(), "data", "settings.json");
+    if (!fs.existsSync(legacyPath)) {
+      legacyPath = path.join(process.cwd(), "..", "data", "settings.json");
+    }
+
+    if (fs.existsSync(legacyPath)) {
       try {
-        const fileContent = fs.readFileSync(SETTINGS_FILE_PATH, "utf-8");
+        console.log(`📝 Migrating legacy settings.json (${legacyPath}) to SQLite...`);
+        const fileContent = fs.readFileSync(legacyPath, "utf-8");
         const parsed = JSON.parse(fileContent) as Partial<AppSettings>;
         this.settings = this.mergeWithDefaults(parsed);
+        this.saveToDb(this.settings);
+        this.cleanupLegacyJson(legacyPath);
+        return;
       } catch (err) {
-        console.error("⚠️ Error reading settings.json, falling back to defaults:", err);
-        this.settings = this.getDefaultSettings();
+        console.error("⚠️ Failed to migrate legacy settings.json:", err);
       }
-    } else {
-      console.log("📝 settings.json not found. Creating with default values...");
-      this.settings = this.getDefaultSettings();
-      this.save(this.settings);
     }
+
+    // Otherwise, initialize with defaults
+    console.log("📝 Initializing SQLite settings with default values...");
+    this.settings = this.getDefaultSettings();
+    this.saveToDb(this.settings);
   }
 
   /** Returns a copy of the current settings. */
@@ -65,7 +103,7 @@ class SettingsManager {
   }
 
   /**
-   * Updates settings and persists them to settings.json.
+   * Updates settings and persists them to SQLite system_settings table.
    * If some fields are missing, they will be left unchanged.
    */
   update(newSettings: Partial<AppSettings>): void {
@@ -82,15 +120,38 @@ class SettingsManager {
         ...(newSettings.icecast || {}),
       },
     };
-    this.save(this.settings);
+    this.saveToDb(this.settings);
   }
 
-  private save(settings: AppSettings): void {
+  private saveToDb(settings: AppSettings): void {
     try {
-      fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(settings, null, 2), "utf-8");
-      console.log("💾 Settings saved successfully");
+      const db = dbService.getDb();
+      const stmt = db.prepare("INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)");
+      
+      for (const [k, v] of Object.entries(settings)) {
+        const strValue = typeof v === "object" ? JSON.stringify(v) : String(v);
+        stmt.run(k, strValue);
+      }
+      console.log("💾 Settings saved successfully to SQLite");
     } catch (err) {
-      console.error("❌ Failed to write settings.json:", err);
+      console.error("❌ Failed to write settings to SQLite:", err);
+    }
+  }
+
+  private cleanupLegacyJson(filePath?: string): void {
+    try {
+      const pathsToClean = filePath ? [filePath] : [
+        path.join(process.cwd(), "data", "settings.json"),
+        path.join(process.cwd(), "..", "data", "settings.json")
+      ];
+      for (const p of pathsToClean) {
+        if (fs.existsSync(p)) {
+          fs.unlinkSync(p);
+          console.log(`🧹 Legacy settings.json removed: ${p}`);
+        }
+      }
+    } catch (err) {
+      console.warn("⚠️ Failed to remove legacy settings.json:", err);
     }
   }
 
@@ -119,6 +180,12 @@ class SettingsManager {
       useCloudflare: process.env["USE_CLOUDFLARE"] === "true" || false,
       localBitrate: process.env["LOCAL_BITRATE"] || "320k",
       streamServerEnabled: process.env["STREAM_SERVER_ENABLED"] !== "false",
+      duckdnsEnabled: process.env["DUCKDNS_ENABLED"] === "true" || false,
+      duckdnsDomain: process.env["DUCKDNS_DOMAIN"] || "",
+      duckdnsToken: process.env["DUCKDNS_TOKEN"] || "",
+      stationAlias: process.env["STATION_ALIAS"] || "ProcyonRadio",
+      stationLanguage: (process.env["STATION_LANGUAGE"] as "es" | "en") || "es",
+      ownerEmail: process.env["OWNER_EMAIL"] || "",
     };
   }
 
@@ -145,6 +212,12 @@ class SettingsManager {
       useCloudflare: parsed.useCloudflare ?? defaults.useCloudflare,
       localBitrate: parsed.localBitrate ?? defaults.localBitrate,
       streamServerEnabled: parsed.streamServerEnabled ?? defaults.streamServerEnabled,
+      duckdnsEnabled: parsed.duckdnsEnabled ?? defaults.duckdnsEnabled,
+      duckdnsDomain: parsed.duckdnsDomain ?? defaults.duckdnsDomain,
+      duckdnsToken: parsed.duckdnsToken ?? defaults.duckdnsToken,
+      stationAlias: parsed.stationAlias ?? defaults.stationAlias,
+      stationLanguage: parsed.stationLanguage ?? defaults.stationLanguage,
+      ownerEmail: parsed.ownerEmail ?? defaults.ownerEmail,
     };
   }
 }

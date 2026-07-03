@@ -101,6 +101,19 @@ class StreamServer {
    */
   public broadcast(chunk: Buffer): void {
     for (const res of this.subscribers) {
+      // Prevent memory leaks: if subscriber buffer is backed up (e.g. client is suspended or slow), disconnect them.
+      // 512 KB threshold: ~13s of 320kbps audio or ~32s of 128kbps audio.
+      if (res.writableLength > 512 * 1024) {
+        console.warn(`[StreamServer] Subscriber buffer overflow (${res.writableLength} bytes). Disconnecting subscriber to prevent memory leak.`);
+        try {
+          res.destroy();
+        } catch (err) {
+          // Ignored
+        }
+        this.subscribers.delete(res);
+        continue;
+      }
+
       try {
         res.write(chunk);
       } catch (err) {
