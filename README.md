@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Node.js-v20+-green.svg?style=flat-square&logo=node.js" alt="Node.js version" />
   <img src="https://img.shields.io/badge/Docker-Supported-blue.svg?style=flat-square&logo=docker" alt="Docker Support" />
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey.svg?style=flat-square" alt="Platform Support" />
-  <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" alt="License" />
+  <img src="https://img.shields.io/badge/License-Private-red.svg?style=flat-square" alt="License" />
 </p>
 
 ---
