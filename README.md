@@ -43,7 +43,7 @@ ProcyonRadio es un servidor de streaming autohospedado con panel web reactivo. B
 
 ### Streaming
 - **Modo Icecast** (activo): Audio MP3/AAC a servidores de radio online (ZenoMedia, Icecast, Shoutcast)
-- **Modo YouTube RTMP** (codigo presente, pendiente de reimplementacion en UI): Transmision a YouTube Live
+- **Modo YouTube (Video RTMP)**: disponible en codigo, pendiente de exponer en UI.
 - **Zero-gaps**: Codificador persistente, decodificadores PCM alternados en background
 
 ### Fuentes de Audio
