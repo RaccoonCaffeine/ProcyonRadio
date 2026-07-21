@@ -7,105 +7,73 @@
 <h3 align="center">ProcyonRadio</h3>
 
 <p align="center">
-  <strong>Servidor de streaming de audio/video y panel de control reactivo diseñado especialmente para servidores de GTA V (FiveM).</strong>
+  <strong>Servidor de streaming de audio y panel de control reactivo — autohospedado, multi-plataforma.</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Node.js-v20+-green.svg?style=flat-square&logo=node.js" alt="Node.js version" />
-  <img src="https://img.shields.io/badge/Docker-Supported-blue.svg?style=flat-square&logo=docker" alt="Docker Support" />
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey.svg?style=flat-square" alt="Platform Support" />
+  <img src="https://img.shields.io/badge/Node.js-22-green.svg?style=flat-square&logo=node.js" alt="Node.js" />
+  <img src="https://img.shields.io/badge/Docker-Supported-blue.svg?style=flat-square&logo=docker" alt="Docker" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey.svg?style=flat-square" alt="Platform" />
   <img src="https://img.shields.io/badge/License-Private-red.svg?style=flat-square" alt="License" />
 </p>
 
 ---
 
-## 📝 Descripción
+## Descripcion
 
-**ProcyonRadio** es una solución autohospedada que te permite crear y transmitir tu propia señal de radio en vivo. Combina un potente backend de codificación continua con un panel de control web reactivo y moderno. Está optimizada para integrarse como radio en el juego dentro de **GTA V (FiveM)** o emitir transmisiones 24/7 en plataformas de streaming.
-
----
-
-## 🚀 Características Principales
-
-* **Transmisión Multi-Modo**:
-  * **Modo YouTube (Video RTMP)**: Combina una imagen de fondo estática y audio continuo en un feed de video H.264 para transmitir directamente a YouTube Live sin interrupciones.
-  * **Modo Icecast (Solo Audio)**: Codificación ligera en formatos MP3/AAC directa a servidores de radio online (ZenoMedia, Icecast, Shoutcast o Listen2MyRadio), reduciendo drásticamente el consumo de CPU.
-* **Transiciones Sin Cortes (Zero-Gaps)**: Arquitectura de codificador persistente que nunca corta la conexión de red con el destino; los decodificadores PCM se alternan en segundo plano de forma invisible para el oyente.
-* **Buscador Integrado y Respaldos**:
-  * Agrega canciones pegando URLs directas de YouTube o playlists.
-  * Realiza búsquedas por nombre de canción directamente desde el panel.
-  * **SoundCloud Fallback**: Si un tema falla por derechos de autor o restricción geográfica en YouTube, el servidor busca y reproduce automáticamente un respaldo en SoundCloud.
-* **Panel Web Reactivo e Inteligente**:
-  * Diseñado con Vanilla JavaScript, delegación de eventos y estados reactivos mediante `Proxy`.
-  * Diseño adaptativo premium (tonos oscuros e índigo) optimizado para pantallas táctiles y navegadores integrados en el juego (NUI de FiveM).
-  * Soporte nativo para modo claro y oscuro, adaptando tanto el logotipo vectorial (inline SVG) como el favicon al instante.
-* **Control de Accesos Basado en Roles (RBAC)**:
-  * **Dueño (`owner`) / Admin (`admin`)**: Acceso a toda la configuración de transmisión y gestión de usuarios.
-  * **Operador (`operator`)**: Gestión de lista de reproducción (añadir, borrar y ordenar temas con flechas manuales).
-  * **Invitado (`guest`)**: Acceso de solo lectura al reproductor.
-* **Túnel Cloudflare Automático**: Levanta un subdominio seguro (`HTTPS`) de forma automática y transparente sin necesidad de abrir puertos en tu router o lidiar con problemas de CGNAT.
-* **Instalador Portable en Windows**: Un instalador moderno de un solo archivo ejecutable C# nativo que extrae todo lo necesario (servidor NodeJS compilado, `ffmpeg` y `yt-dlp`) y asocia los accesos directos con un icono transparente de alta definición.
+ProcyonRadio es un servidor de streaming autohospedado con panel web reactivo. Backend Node.js + Express + FFmpeg para transmision continua sin cortes (zero-gap).
 
 ---
 
-## 📸 Capturas de Pantalla
+## Stack Tecnologico
 
-| Vista de Escritorio (Relación de Aspecto 16:9 Adaptativo) | Vista Móvil (Relación de Aspecto 16:9) |
-|:---:|:---:|
-| ![Escritorio](assets/ProcyonRadio%20Desktop.png) | ![Móvil](assets/ProcyonRadio%20Mobil.png) |
+| Tecnologia | Version | Proposito |
+|:-----------|:--------|:----------|
+| **Node.js** | >=22 | Runtime |
+| **Express** | ^4.21.2 | Servidor HTTP + API REST |
+| **TypeScript** | ^5.8.3 | Lenguaje |
+| **FFmpeg** | latest | Codificacion/decodificacion de audio (pipes) |
+| **yt-dlp** | latest | Descarga de audio desde YouTube |
+| **SQLite (WAL)** | built-in | Base de datos embebida |
+| **Caddy** | latest | Proxy reverso + TLS automatico |
+| **Cloudflared** | latest | Tunel HTTPS sin abrir puertos |
+| **Docker** | compose | Despliegue en servidor |
 
----
+## Caracteristicas Principales
 
-## 🛠️ Instalación y Despliegue
+### Streaming
+- **Modo Icecast** (activo): Audio MP3/AAC a servidores de radio online (ZenoMedia, Icecast, Shoutcast)
+- **Modo YouTube RTMP** (codigo presente, pendiente de reimplementacion en UI): Transmision a YouTube Live
+- **Zero-gaps**: Codificador persistente, decodificadores PCM alternados en background
 
-### Opción A: Despliegue con Docker (Recomendado para Servidores)
+### Fuentes de Audio
+- **YouTube**: Busqueda y descarga via yt-dlp (URLs, playlists, busqueda por nombre)
+- **SoundCloud**: Fallback automatico si un tema falla en YouTube
 
-Asegúrate de tener instalado [Docker](https://www.docker.com/) y [Docker Compose].
+### Control de Acceso (RBAC)
+| Rol | Permisos |
+|:----|:---------|
+| **Owner / Admin** | Configuracion completa, gestion usuarios |
+| **Operator** | Gestion de lista de reproduccion |
+| **Guest** | Solo lectura del reproductor |
 
-1. Clona este repositorio en tu servidor.
-2. Configura las variables de entorno en el archivo `.env` en la raíz (usa como plantilla el archivo `.env` de ejemplo).
-3. Inicia los contenedores en segundo plano:
-   ```bash
-   docker compose up --build -d livestream
-   ```
-4. El servidor estará escuchando en el puerto `3000`. Si tienes el túnel de Cloudflare activo (`EXPOSE_SERVER=true` en tu `.env`), verás el enlace seguro HTTPS en el log de la aplicación.
+### Infraestructura
+- **Tunel Cloudflare**: Subdominio HTTPS automatico sin abrir puertos
+- **DDNS**: Actualizacion dinamica de DNS
+- **Caddy**: Proxy reverso con TLS automatico
+- **Docker**: Despliegue con docker-compose
+- **Instalador Windows**: .exe portable con FFmpeg + yt-dlp incluidos
 
-### Opción B: Instalador Portable (Recomendado para Windows Local)
+## Instalacion
 
-1. Descarga el ejecutable `ProcyonRadio-Instalador.exe` desde la sección de lanzamientos (Releases) de tu repositorio.
-2. Ejecuta el instalador e indica la ruta de destino (por defecto en tu perfil de usuario para no requerir permisos de administrador).
-3. Selecciona si deseas accesos directos en el Escritorio y el Menú Inicio.
-4. El instalador extraerá de forma standalone todo el servidor junto con los binarios de `ffmpeg` y `yt-dlp` y creará los accesos con el icono oficial de la app.
-
----
-
-## 📂 Estructura del Repositorio
-
-```
-ProcyonRadio/
-├── assets/              # Logo oficial e imágenes del proyecto
-├── backend/
-│   ├── src/             # Código fuente TypeScript (Express, Workers, RBAC)
-│   ├── public/          # Assets estáticos de la Web App (HTML, CSS, JS modular, SVGs)
-│   ├── installer/       # Código C# del Instalador portable y scripts de WiX
-│   └── package.json     # Dependencias de Node.js
-├── data/                # Carpeta local para imágenes y base de datos (excluida de git)
-├── Dockerfile           # Receta de construcción de la imagen Docker
-├── docker-compose.yml   # Orquestación de servicios (livestream + sidecar de firmas)
-├── .gitignore           # Archivos ignorados por Git (binarios, datos, .env)
-└── README.md            # Presentación del proyecto
+### Docker (recomendado para servidor)
+```bash
+docker compose up --build -d livestream
 ```
 
----
+### Windows (instalador portable)
+Descargar ProcyonRadio-Instalador.exe desde Releases.
 
-## 🤝 Contribuciones
+## Licencia
 
-Las contribuciones son bienvenidas. Si encuentras un error o deseas proponer una mejora, abre un **Issue** o envía un **Pull Request**.
-
----
-
-## 📄 Licencia
-
-**Todos los derechos reservados.**
-
-Este proyecto es de desarrollo privado y propiedad de RaccoonCaffeine. No esta permitida su distribucion, modificacion o uso sin autorizacion explicita.
+**Todos los derechos reservados.** Desarrollo privado.
